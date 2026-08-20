@@ -1,0 +1,6 @@
+{
+  "name": "Al Shaheed Recycling & Scrap Trading Platform",
+  "description": "Enterprise B2B scrap metal and recyclable material trading marketplace, automated supply-demand matching engine, agent compensation and transaction management system for Al Shaheed Trading and Equipment Co.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
