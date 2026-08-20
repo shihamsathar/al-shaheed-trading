@@ -1,0 +1,27 @@
+# Render Blueprint Configuration (render.yaml)
+# https://render.com/docs/blueprint-spec
+# Deploy Al Shaheed Trading & Equipment Co. Recycling Platform
+
+services:
+  - type: web
+    name: al-shaheed-trading-platform
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 20
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_USERNAME
+        value: admin@alshaheedrecycling.com
+      - key: ADMIN_PASSWORD
+        value: admin123@AlShaheed
