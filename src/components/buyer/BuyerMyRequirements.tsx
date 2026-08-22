@@ -4,6 +4,7 @@ import { api } from '../../services/api';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
 import { COMMODITY_CATEGORIES, INCOTERMS, DESTINATION_PORTS } from '../../constants/tradeData';
+import { PhotoUploader } from '../common/PhotoUploader';
 import { BuyerRequirement } from '../../types';
 import {
   TrendingUp,
@@ -34,6 +35,7 @@ export const BuyerMyRequirements: React.FC = () => {
     incoterms: 'CFR',
     paymentTerms: '100% Irrevocable LC at Sight',
     urgency: 'HIGH',
+    photos: [] as string[],
     notes: 'Looking for prompt shipment. SGS inspection required before loading.',
   });
 
@@ -292,6 +294,16 @@ export const BuyerMyRequirements: React.FC = () => {
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
               />
             </div>
+          </div>
+
+          <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <PhotoUploader
+              photos={form.photos}
+              onChange={(newPhotos) => setForm({ ...form, photos: newPhotos })}
+              label="Reference Sample / Quality Photos (Optional)"
+              subtitle="Add benchmark scrap grade photos from camera, desktop, or library"
+              maxPhotos={6}
+            />
           </div>
 
           <div>

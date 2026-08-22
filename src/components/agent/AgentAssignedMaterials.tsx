@@ -4,6 +4,7 @@ import { api } from '../../services/api';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
 import { AgentAssignment } from '../../types';
+import { PhotoUploader } from '../common/PhotoUploader';
 import {
   Boxes,
   DollarSign,
@@ -27,6 +28,7 @@ export const AgentAssignedMaterials: React.FC = () => {
     clientCountry: 'India',
     offeredPricePerMT: 375,
     quantityMT: 100,
+    photos: [] as string[],
     notes: 'Buyer has accepted CFR terms and is ready to issue LC at Sight within 7 banking days.',
   });
 
@@ -210,6 +212,16 @@ export const AgentAssignedMaterials: React.FC = () => {
             <strong className="text-sm">
               {clientForm.quantityMT} MT &times; ${selectedAsg?.agentRatePerTon}/MT = ${(clientForm.quantityMT * (selectedAsg?.agentRatePerTon || 0)).toLocaleString()} USD
             </strong>
+          </div>
+
+          <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <PhotoUploader
+              photos={clientForm.photos}
+              onChange={(newPhotos) => setClientForm({ ...clientForm, photos: newPhotos })}
+              label="Buyer Verification / Material Photos (Optional)"
+              subtitle="Capture site inspection or buyer reference photos"
+              maxPhotos={5}
+            />
           </div>
 
           <div>

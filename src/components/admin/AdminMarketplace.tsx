@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { PhotoUploader } from '../common/PhotoUploader';
 import { COMMODITY_CATEGORIES, INCOTERMS, PORTS_OF_SHIPPING } from '../../constants/tradeData';
 import {
   Boxes,
@@ -833,17 +834,14 @@ export const AdminMarketplace: React.FC = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Material Photo URL * (At least 1 required)
-            </label>
-            <input
-              type="url"
-              required
-              value={newListingForm.photos[0]}
-              onChange={(e) => setNewListingForm({ ...newListingForm, photos: [e.target.value] })}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-mono text-[11px]"
-              placeholder="https://..."
+          <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <PhotoUploader
+              photos={newListingForm.photos}
+              onChange={(newPhotos) => setNewListingForm({ ...newListingForm, photos: newPhotos })}
+              label="Material & Scrap Lot Photos"
+              subtitle="Capture via mobile camera, upload from desktop, or pick scrap presets"
+              required={true}
+              maxPhotos={8}
             />
           </div>
 

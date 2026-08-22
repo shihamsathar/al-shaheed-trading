@@ -3,6 +3,7 @@ import { api } from '../../services/api';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
 import { BuyerRequirement } from '../../types';
+import { PhotoUploader } from '../common/PhotoUploader';
 import {
   TrendingUp,
   Search,
@@ -26,6 +27,7 @@ export const SupplierDemandFeed: React.FC = () => {
     offeredPrice: 340,
     availableQuantityMT: 200,
     loadingPort: 'Hamad Port (Doha)',
+    photos: [] as string[],
     notes: 'Material is ready in yard for immediate stuffing upon LC confirmation.',
   });
 
@@ -200,6 +202,16 @@ export const SupplierDemandFeed: React.FC = () => {
               value={offerForm.loadingPort}
               onChange={(e) => setOfferForm({ ...offerForm, loadingPort: e.target.value })}
               className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
+            />
+          </div>
+
+          <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <PhotoUploader
+              photos={offerForm.photos}
+              onChange={(newPhotos) => setOfferForm({ ...offerForm, photos: newPhotos })}
+              label="Attach Material Verification Photos (Optional)"
+              subtitle="Provide photos of your yard stock via phone camera or files"
+              maxPhotos={6}
             />
           </div>
 

@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   FileCheck,
   Printer,
+  Camera,
 } from 'lucide-react';
 import { printTradeDocument, downloadDocumentFile } from '../../utils/documentPrinter';
 
@@ -238,12 +239,77 @@ AUTHENTICATION HASH: SHA256-${Math.random().toString(36).substring(2, 15).toUppe
             <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
               File Attachment *
             </label>
-            <div className="p-4 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-center bg-slate-50 dark:bg-slate-950">
-              <Upload className="w-6 h-6 text-slate-400 mx-auto mb-1" />
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
-                {uploadForm.fileName}
+            <input
+              type="file"
+              id="doc-file-input"
+              className="hidden"
+              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const sizeMB = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+                  const reader = new FileReader();
+                  reader.onload = (re) => {
+                    setUploadForm({
+                      ...uploadForm,
+                      fileName: file.name,
+                      fileSize: sizeMB,
+                      fileUrl: (re.target?.result as string) || '#',
+                    });
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+            <input
+              type="file"
+              id="doc-camera-input"
+              className="hidden"
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const sizeMB = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+                  const reader = new FileReader();
+                  reader.onload = (re) => {
+                    setUploadForm({
+                      ...uploadForm,
+                      fileName: `camera_scan_${Date.now()}.jpg`,
+                      fileSize: sizeMB,
+                      fileUrl: (re.target?.result as string) || '#',
+                    });
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+
+            <div className="p-4 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-center bg-slate-50 dark:bg-slate-950 space-y-2">
+              <Upload className="w-6 h-6 text-slate-400 mx-auto" />
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block font-mono">
+                {uploadForm.fileName} ({uploadForm.fileSize})
               </span>
-              <span className="text-[10px] text-slate-400">PDF, JPG, PNG up to 25MB</span>
+              <span className="text-[10px] text-slate-400 block">PDF, JPG, PNG up to 25MB</span>
+
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('doc-file-input')?.click()}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Choose File</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('doc-camera-input')?.click()}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Phone Camera Scan</span>
+                </button>
+              </div>
             </div>
           </div>
 

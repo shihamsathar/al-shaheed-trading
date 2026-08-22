@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { COMMODITY_CATEGORIES, INCOTERMS, PORTS_OF_SHIPPING } from '../../constants/tradeData';
+import { PhotoUploader } from '../common/PhotoUploader';
 import {
   PlusCircle,
   Upload,
@@ -50,22 +51,6 @@ export const SupplierAddListing: React.FC<SupplierAddListingProps> = ({ onNaviga
     ],
     description: 'Clean industrial scrap sourced from structural demolition and oilfield dismantling. Ready for prompt stuffing and export shipping.',
   });
-
-  const [newPhotoUrl, setNewPhotoUrl] = useState('');
-
-  const handleAddPhoto = () => {
-    if (!newPhotoUrl) return;
-    setForm({ ...form, photos: [...form.photos, newPhotoUrl] });
-    setNewPhotoUrl('');
-  };
-
-  const handleRemovePhoto = (idx: number) => {
-    if (form.photos.length <= 1) {
-      alert('At least 1 photo is required for the scrap lot.');
-      return;
-    }
-    setForm({ ...form, photos: form.photos.filter((_, i) => i !== idx) });
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -301,50 +286,14 @@ export const SupplierAddListing: React.FC<SupplierAddListingProps> = ({ onNaviga
 
         {/* Section 4: Material Photo Uploads (Multi-Image) */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-            <ImageIcon className="w-4 h-4 text-emerald-600" />
-            4. Material Photos (Multi-Image Upload) *
-          </h3>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {form.photos.map((photo, idx) => (
-              <div
-                key={idx}
-                className="relative h-32 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 group"
-              >
-                <img
-                  src={photo}
-                  alt={`Scrap Lot Photo ${idx + 1}`}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemovePhoto(idx)}
-                  className="absolute top-2 right-2 p-1 rounded-md bg-rose-600 text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex gap-2 text-xs">
-            <input
-              type="url"
-              placeholder="Paste additional image URL (e.g. yard photo, container stuffing)..."
-              value={newPhotoUrl}
-              onChange={(e) => setNewPhotoUrl(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-mono text-[11px]"
-            />
-            <button
-              type="button"
-              onClick={handleAddPhoto}
-              className="px-4 py-2 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 transition-colors"
-            >
-              + Add Photo
-            </button>
-          </div>
+          <PhotoUploader
+            photos={form.photos}
+            onChange={(newPhotos) => setForm({ ...form, photos: newPhotos })}
+            label="4. Material & Scrap Lot Photos"
+            subtitle="Take high-res photos using your phone camera, upload from desktop, drag & drop, or choose from Al Shaheed scrap presets"
+            required={true}
+            maxPhotos={10}
+          />
         </div>
 
         {/* Action Button */}
