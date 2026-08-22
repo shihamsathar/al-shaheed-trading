@@ -6,6 +6,75 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
+  /* Universal Input, Textarea, Select Visibility Guarantee */
+  input,
+  textarea,
+  select {
+    color: #0f172a !important; /* Always crisp dark text by default on light inputs */
+    background-color: #f8fafc;
+    border-color: #cbd5e1;
+    caret-color: #059669;
+  }
+
+  /* Ensure placeholders are crisp and legible */
+  input::placeholder,
+  textarea::placeholder {
+    color: #64748b !important;
+    opacity: 0.9 !important;
+  }
+
+  /* Active and Focused Input Visibility */
+  input:focus,
+  textarea:focus,
+  select:focus {
+    color: #020617 !important;
+    background-color: #ffffff !important;
+    border-color: #059669 !important;
+    outline: none !important;
+  }
+
+  /* When inputs are in explicit dark-themed containers or dark mode */
+  .dark input,
+  .dark textarea,
+  .dark select,
+  .bg-slate-900 input,
+  .bg-slate-900 textarea,
+  .bg-slate-900 select,
+  .bg-slate-950 input,
+  .bg-slate-950 textarea,
+  .bg-slate-950 select {
+    color: #0f172a;
+    background-color: #f8fafc;
+  }
+
+  /* Inputs inside white or light cards / modals */
+  .bg-white input,
+  .bg-white textarea,
+  .bg-white select,
+  .bg-slate-50 input,
+  .bg-slate-50 textarea,
+  .bg-slate-50 select,
+  #app-modal-container input,
+  #app-modal-container textarea,
+  #app-modal-container select {
+    color: #0f172a !important;
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1;
+  }
+
+  .bg-white input:focus,
+  .bg-white textarea:focus,
+  .bg-white select:focus,
+  .bg-slate-50 input:focus,
+  .bg-slate-50 textarea:focus,
+  .bg-slate-50 select:focus,
+  #app-modal-container input:focus,
+  #app-modal-container textarea:focus,
+  #app-modal-container select:focus {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+  }
+
   /* Custom Luxury Scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
