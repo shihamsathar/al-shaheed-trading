@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { Badge } from '../common/Badge';
-import { TRADE_PHOTOS } from '../../constants/photos';
 import {
   Boxes,
   DollarSign,
@@ -45,9 +44,15 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ onNavigate }) =>
     loadAgentData();
   }, [user]);
 
-  const earnedCommissions = 15000;
-  const pendingCommissions = 6200;
-  const totalVolumeBrokered = 1850;
+  const earnedCommissions = transactions
+    .filter((t) => t.status === 'COMPLETED')
+    .reduce((sum, t) => sum + (t.agentCommissionTotal || 0), 0);
+  const pendingCommissions = transactions
+    .filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED')
+    .reduce((sum, t) => sum + (t.agentCommissionTotal || 0), 0);
+  const totalVolumeBrokered = transactions
+    .filter((t) => t.status === 'COMPLETED')
+    .reduce((sum, t) => sum + (t.quantity || 0), 0);
 
   if (loading) {
     return (
@@ -62,22 +67,13 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ onNavigate }) =>
 
   return (
     <div className="space-y-8 pb-16">
-      {/* High-End Hero Banner with Maritime / Cargo Photography */}
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-amber-500/20 bg-slate-950">
-        {/* Photo Layer */}
-        <div className="absolute inset-0 z-0">
-          <img
-            src={TRADE_PHOTOS.MARITIME_CARGO_SHIP}
-            alt="International Cargo Ship"
-            referrerPolicy="no-referrer"
-            className="w-full h-full object-cover object-center opacity-30 filter brightness-90 contrast-110"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
-        </div>
+      {/* High-End Clean Hero Banner */}
+      <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-amber-500/20 bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/60 p-6 sm:p-8 lg:p-10">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Content */}
-        <div className="relative z-10 p-6 sm:p-8 lg:p-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-400/30 mb-4 backdrop-blur-md">
               <Award className="w-4 h-4 text-amber-400" />

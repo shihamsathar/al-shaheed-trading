@@ -50,14 +50,6 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
     { label: 'Doha Hamad -> JNPT Freight (20ft)', price: '$650/TEU', change: 'Stable', isUp: true },
   ];
 
-  // Demo accounts for rapid switching
-  const demoAccounts = [
-    { id: 'usr-admin-01', label: 'Admin Desk', role: 'ADMIN' },
-    { id: 'usr-sup-01', label: 'Supplier (Gulf Smelting)', role: 'SUPPLIER' },
-    { id: 'usr-buy-01', label: 'Buyer (Bharat Steel)', role: 'BUYER' },
-    { id: 'usr-agt-01', label: 'Agent (Khalid Broker)', role: 'AGENT' },
-  ];
-
   return (
     <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-xl border-b border-emerald-900/30 transition-all">
       {/* High-End Global Commodity Ticker Bar */}
@@ -86,29 +78,10 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
           </div>
         </div>
 
-        {/* Demo Fast-Switch Pills */}
+        {/* Official Trade Support Hotline */}
         <div className="hidden lg:flex items-center gap-2 pl-4 shrink-0 border-l border-emerald-900/50">
-          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Demo Switch:</span>
-          <div className="flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-slate-800">
-            {demoAccounts.map((acc) => {
-              const isActive = user?.id === acc.id || (user?.role === acc.role && user?.role !== 'SUPPLIER');
-              return (
-                <button
-                  key={acc.id}
-                  id={`demo-switch-${acc.role.toLowerCase()}`}
-                  onClick={() => switchDemoUser(acc.id)}
-                  className={`px-2.5 py-0.5 text-[10px] font-bold rounded-md transition-all ${
-                    isActive
-                      ? 'bg-emerald-500 text-slate-950 shadow-xs'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                  title={`Switch role to ${acc.label}`}
-                >
-                  {acc.role}
-                </button>
-              );
-            })}
-          </div>
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[11px] text-emerald-300 font-semibold">Al Shaheed Industrial Exchange</span>
         </div>
       </div>
 

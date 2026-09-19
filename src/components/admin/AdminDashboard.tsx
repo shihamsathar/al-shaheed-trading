@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { Badge } from '../common/Badge';
-import { TRADE_PHOTOS } from '../../constants/photos';
+import { ScrapListing } from '../../types';
 import {
   Boxes,
   Users,
@@ -32,19 +32,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const [summary, setSummary] = useState<any>(null);
   const [matches, setMatches] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [listings, setListings] = useState<ScrapListing[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        const [sum, matchData, txns] = await Promise.all([
+        const [sum, matchData, txns, listData] = await Promise.all([
           api.getAnalyticsSummary(),
           api.getMatches(),
           api.getTransactions(),
+          api.getListings(),
         ]);
         setSummary(sum);
         setMatches(matchData.slice(0, 4));
         setTransactions(txns.slice(0, 5));
+        setListings(listData);
       } catch (err) {
         console.error('Error loading admin dashboard:', err);
       } finally {
@@ -65,60 +68,59 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     );
   }
 
-  const activeSupplyMT = summary?.totalAvailableMT || 8420;
-  const activeDemandMT = summary?.totalDemandMT || 6400;
-  const grossMargin = summary?.totalGrossMargin || 184200;
-  const totalSales = summary?.totalSalesValue || 945000;
-  const totalSuppliers = summary?.totalSuppliers || 128;
-  const totalBuyers = summary?.totalBuyers || 242;
+  const activeSupplyMT = summary?.totalAvailableMT || listings.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
+  const activeDemandMT = summary?.totalDemandMT || 0;
+  const grossMargin = summary?.totalGrossMargin || 0;
+  const totalSales = summary?.totalSalesValue || 0;
+  const totalSuppliers = summary?.totalSuppliers || 0;
+  const totalBuyers = summary?.totalBuyers || 0;
 
-  // Visual Category Highlights with Curated Photography
+  // Visual Category Highlights dynamically derived
   const categories = [
     {
       name: 'Ferrous Metal Scrap',
-      grade: 'HMS 1&2, Shredded 211, PNS',
-      volume: '5,800 MT',
-      img: TRADE_PHOTOS.HMS_STEEL_SCRAP,
+      grade: 'HMS 1&2, Shredded Steel, PNS',
+      volume: `${listings.filter((l) => l.commodityCategory === 'Metal Scrap').reduce((sum, l) => sum + (Number(l.quantity) || 0), 0).toLocaleString()} MT`,
+      count: listings.filter((l) => l.commodityCategory === 'Metal Scrap').length,
       badge: 'High Liquidity',
+      color: 'from-blue-600/20 to-slate-900',
+      icon: 'Fe',
     },
     {
       name: 'Copper & Non-Ferrous',
-      grade: 'Millberry 99.9%, Berry, Birch',
-      volume: '940 MT',
-      img: TRADE_PHOTOS.COPPER_MILLBERRY,
+      grade: 'Millberry, Berry, Brass, Birch',
+      volume: `${listings.filter((l) => l.commodityCategory === 'Metal Scrap' && l.materialName?.toLowerCase().includes('copper')).reduce((sum, l) => sum + (Number(l.quantity) || 0), 0).toLocaleString()} MT`,
+      count: listings.filter((l) => l.commodityCategory === 'Metal Scrap' && l.materialName?.toLowerCase().includes('copper')).length,
       badge: 'Premium Margin',
+      color: 'from-amber-600/20 to-slate-900',
+      icon: 'Cu',
     },
     {
-      name: 'Paper Waste OCC 11',
+      name: 'Paper Waste & OCC 11',
       grade: 'Double/Single Wall Bales',
-      volume: '1,680 MT',
-      img: TRADE_PHOTOS.OCC_PAPER_WASTE,
+      volume: `${listings.filter((l) => l.commodityCategory === 'Paper Waste').reduce((sum, l) => sum + (Number(l.quantity) || 0), 0).toLocaleString()} MT`,
+      count: listings.filter((l) => l.commodityCategory === 'Paper Waste').length,
       badge: 'Containerized',
+      color: 'from-emerald-600/20 to-slate-900',
+      icon: 'OCC',
     },
     {
       name: 'Aluminium Scrap',
-      grade: 'UBC, Tense, Taint Tabor',
-      volume: '850 MT',
-      img: TRADE_PHOTOS.ALUMINIUM_SCRAP,
+      grade: 'UBC, Tense, Taint Tabor, Extrusion',
+      volume: `${listings.filter((l) => l.commodityCategory === 'Metal Scrap' && l.materialName?.toLowerCase().includes('alum')).reduce((sum, l) => sum + (Number(l.quantity) || 0), 0).toLocaleString()} MT`,
+      count: listings.filter((l) => l.commodityCategory === 'Metal Scrap' && l.materialName?.toLowerCase().includes('alum')).length,
       badge: 'Fast Clearance',
+      color: 'from-cyan-600/20 to-slate-900',
+      icon: 'Al',
     },
   ];
 
   return (
     <div className="space-y-8 pb-16">
-      {/* High-End Cinematic Hero Banner with Maritime Photography */}
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-emerald-500/20 bg-slate-950">
-        {/* Background Image Layer with Atmospheric Gradients */}
-        <div className="absolute inset-0 z-0">
-          <img
-            src={TRADE_PHOTOS.PORT_TERMINAL_TWILIGHT}
-            alt="Doha Port Terminal"
-            referrerPolicy="no-referrer"
-            className="w-full h-full object-cover object-center opacity-35 filter brightness-90 contrast-110"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
-        </div>
+      {/* High-End Clean Industrial Hero Banner */}
+      <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-emerald-500/20 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/70">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Content Layer */}
         <div className="relative z-10 p-6 sm:p-8 lg:p-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -196,31 +198,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             <div
               key={idx}
               onClick={() => onNavigate('admin-marketplace')}
-              className="group relative rounded-2xl overflow-hidden border border-emerald-500/20 bg-slate-900/90 hover:border-emerald-400/60 transition-all cursor-pointer shadow-lg hover:shadow-emerald-950/40 flex flex-col justify-end min-h-[160px] p-4"
+              className="group relative rounded-2xl overflow-hidden border border-slate-800 hover:border-emerald-500/50 bg-slate-900/90 transition-all cursor-pointer shadow-lg hover:shadow-emerald-950/40 flex flex-col justify-between min-h-[150px] p-4.5"
             >
-              {/* Photo Background */}
-              <div className="absolute inset-0 z-0">
-                <img
-                  src={cat.img}
-                  alt={cat.name}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-40 filter brightness-90"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/30" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700/60 flex items-center justify-center text-xs font-mono font-black text-emerald-400">
+                  {cat.icon}
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                  {cat.badge}
+                </span>
               </div>
 
-              {/* Card Meta */}
-              <div className="relative z-10">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 backdrop-blur-md">
-                    {cat.badge}
-                  </span>
-                  <span className="text-xs font-mono font-bold text-emerald-400">{cat.volume}</span>
-                </div>
+              <div>
                 <h3 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
                   {cat.name}
                 </h3>
-                <p className="text-[11px] text-slate-300 truncate mt-0.5">{cat.grade}</p>
+                <p className="text-[11px] text-slate-400 truncate mt-0.5 mb-2">{cat.grade}</p>
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                  <span className="text-xs text-slate-400 font-medium">Tonnage:</span>
+                  <span className="text-xs font-mono font-black text-emerald-400">{cat.volume}</span>
+                </div>
               </div>
             </div>
           ))}

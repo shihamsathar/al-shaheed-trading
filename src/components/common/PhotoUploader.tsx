@@ -22,52 +22,8 @@ export interface PhotoUploaderProps {
   subtitle?: string;
   required?: boolean;
   allowCamera?: boolean;
-  allowPresets?: boolean;
   category?: 'scrap' | 'document' | 'general';
 }
-
-const SCRAP_SAMPLE_PRESETS = [
-  {
-    name: 'HMS 1/2 Heavy Melting Steel',
-    category: 'Ferrous Metals',
-    url: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?auto=format&fit=crop&w=1000&q=80',
-  },
-  {
-    name: 'Copper Millberry Wire 99.9%',
-    category: 'Non-Ferrous Metals',
-    url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1000&q=80',
-  },
-  {
-    name: 'Aluminium UBC Bales & Extrusion',
-    category: 'Non-Ferrous Metals',
-    url: 'https://images.unsplash.com/photo-1535813547-99c456a41d4a?auto=format&fit=crop&w=1000&q=80',
-  },
-  {
-    name: 'OCC Baled Corrugated Cardboard',
-    category: 'Paper & Fiber',
-    url: 'https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=1000&q=80',
-  },
-  {
-    name: 'Industrial Heavy Equipment & Scrap',
-    category: 'Machinery & Surplus',
-    url: 'https://images.unsplash.com/photo-1579373903781-fd5c0c30c4cd?auto=format&fit=crop&w=1000&q=80',
-  },
-  {
-    name: 'Marine Container Stuffing & Yard',
-    category: 'Logistics / Port Yard',
-    url: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1000&q=80',
-  },
-  {
-    name: 'Steel Mill Scrap Furnace Feed',
-    category: 'Ferrous Scrap',
-    url: 'https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?auto=format&fit=crop&w=1000&q=80',
-  },
-  {
-    name: 'Warehouse Material Stockpile',
-    category: 'Storage / Yard',
-    url: 'https://images.unsplash.com/photo-1587293852726-70cdb56c2866?auto=format&fit=crop&w=1000&q=80',
-  },
-];
 
 export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
   photos = [],
@@ -77,11 +33,9 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
   subtitle = 'Take high-res photos via phone camera, upload from desktop, or drag & drop',
   required = false,
   allowCamera = true,
-  allowPresets = true,
 }) => {
   const [urlInput, setUrlInput] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
-  const [showPresetsModal, setShowPresetsModal] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -148,15 +102,6 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
     const selected = photos[index];
     const updated = [selected, ...photos.filter((_, i) => i !== index)];
     onChange(updated);
-  };
-
-  const handleAddPreset = (url: string) => {
-    if (photos.length >= maxPhotos) {
-      alert(`Maximum limit of ${maxPhotos} photos reached.`);
-      return;
-    }
-    onChange([...photos, url]);
-    setShowPresetsModal(false);
   };
 
   // Drag and Drop handlers
@@ -304,20 +249,6 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
             <Upload className="w-3.5 h-3.5" />
             <span>Upload Files</span>
           </button>
-
-          {/* Quick Presets Library */}
-          {allowPresets && (
-            <button
-              type="button"
-              onClick={() => setShowPresetsModal(true)}
-              className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/50 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-              title="Select authentic scrap photos from Al Shaheed asset library"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span className="hidden sm:inline">Scrap Presets</span>
-              <span className="sm:hidden">Presets</span>
-            </button>
-          )}
 
           {/* Add by Link URL */}
           <button
@@ -539,58 +470,6 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
               >
                 Use Phone Camera File
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Preset Library Quick Selector Modal */}
-      {showPresetsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-amber-500" />
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    Al Shaheed Scrap Photography Library
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Select authentic industry scrap &amp; yard photos to attach instantly
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPresetsModal(false)}
-                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {SCRAP_SAMPLE_PRESETS.map((preset, pIdx) => (
-                <div
-                  key={pIdx}
-                  onClick={() => handleAddPreset(preset.url)}
-                  className="group relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 hover:border-emerald-500 aspect-4/3 cursor-pointer shadow-xs transition-all flex flex-col justify-end"
-                >
-                  <img
-                    src={preset.url}
-                    alt={preset.name}
-                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                  />
-                  <div className="relative z-10 bg-gradient-to-t from-slate-950/95 via-slate-950/70 to-transparent p-2.5 text-white">
-                    <span className="text-[10px] font-bold text-emerald-400 block">
-                      {preset.category}
-                    </span>
-                    <span className="text-xs font-bold leading-tight line-clamp-1">
-                      {preset.name}
-                    </span>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>

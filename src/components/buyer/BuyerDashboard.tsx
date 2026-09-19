@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { Badge } from '../common/Badge';
-import { TRADE_PHOTOS } from '../../constants/photos';
 import {
   Boxes,
   PlusCircle,
@@ -63,22 +62,13 @@ export const BuyerDashboard: React.FC<BuyerDashboardProps> = ({ onNavigate }) =>
 
   return (
     <div className="space-y-8 pb-16">
-      {/* High-End Hero Banner with Maritime Container Logistics Photography */}
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-blue-500/20 bg-slate-950">
-        {/* Photo Layer */}
-        <div className="absolute inset-0 z-0">
-          <img
-            src={TRADE_PHOTOS.CONTAINER_LOGISTICS}
-            alt="International Container Freight Port"
-            referrerPolicy="no-referrer"
-            className="w-full h-full object-cover object-center opacity-30 filter brightness-90 contrast-110"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
-        </div>
+      {/* High-End Clean Hero Banner */}
+      <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-blue-500/20 bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950/70 p-6 sm:p-8 lg:p-10">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Content */}
-        <div className="relative z-10 p-6 sm:p-8 lg:p-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/20 text-blue-300 text-xs font-bold border border-blue-400/30 mb-4 backdrop-blur-md">
               <ShieldCheck className="w-4 h-4 text-blue-400" />
@@ -187,12 +177,19 @@ export const BuyerDashboard: React.FC<BuyerDashboardProps> = ({ onNavigate }) =>
               className="group bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-800 hover:border-blue-500/40 transition-all overflow-hidden shadow-lg cursor-pointer flex flex-col justify-between"
             >
               <div className="h-44 overflow-hidden relative bg-slate-800">
-                <img
-                  src={item.photos?.[0] || TRADE_PHOTOS.HMS_STEEL_SCRAP}
-                  alt={item.materialName}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+                {item.photos?.[0] ? (
+                  <img
+                    src={item.photos[0]}
+                    alt={item.materialName}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-850 text-slate-500 gap-2">
+                    <Boxes className="w-10 h-10 text-slate-600" />
+                    <span className="text-xs font-semibold">No Inspection Photo</span>
+                  </div>
+                )}
                 <div className="absolute top-3 left-3">
                   <span className="text-[10px] font-bold px-2.5 py-1 rounded-md bg-slate-950/80 text-white backdrop-blur-md border border-slate-700">
                     {item.commodityCategory}

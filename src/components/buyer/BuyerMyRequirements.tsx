@@ -25,18 +25,18 @@ export const BuyerMyRequirements: React.FC = () => {
   const [form, setForm] = useState({
     materialName: '',
     commodityCategory: 'Metal Scrap',
-    grade: 'ISRI 200-206 (HMS 1&2)',
-    requiredQuantity: 500,
+    grade: '',
+    requiredQuantity: 0,
     quantityUnit: 'MT',
-    targetPricePerUnit: 370,
+    targetPricePerUnit: 0,
     currency: 'USD',
-    destinationCountry: user?.country || 'India',
-    destinationPort: 'Nhava Sheva Port, Mumbai',
+    destinationCountry: user?.country || '',
+    destinationPort: '',
     incoterms: 'CFR',
     paymentTerms: '100% Irrevocable LC at Sight',
-    urgency: 'HIGH',
+    urgency: 'MEDIUM',
     photos: [] as string[],
-    notes: 'Looking for prompt shipment. SGS inspection required before loading.',
+    notes: '',
   });
 
   const loadReqs = async () => {

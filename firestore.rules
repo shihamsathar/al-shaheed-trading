@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Listings collection
+    match /listings/{listingId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Requirements collection
+    match /requirements/{requirementId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Transactions collection
+    match /transactions/{transactionId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Agent Assignments
+    match /agentAssignments/{assignmentId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Trade Documents
+    match /tradeDocuments/{documentId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Audit Logs
+    match /auditLogs/{logId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // System Settings
+    match /systemSettings/{settingId} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

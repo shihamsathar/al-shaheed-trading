@@ -57,20 +57,18 @@ export const AdminMarketplace: React.FC = () => {
     materialName: '',
     commodityCategory: 'Metal Scrap',
     grade: '',
-    quantity: 100,
-    pricePerUnit: 350,
+    quantity: 0,
+    pricePerUnit: 0,
     currency: 'USD',
     countryOfOrigin: 'Qatar',
-    portOfShipping: 'Hamad Port (Doha)',
-    destinationPort: 'Nhava Sheva (JNPT Mumbai)',
+    portOfShipping: '',
+    destinationPort: '',
     packaging: 'Loose in 20ft Dry Cargo Container (Approx 25-28 MT)',
     incoterms: 'CFR',
     paymentTerms: '100% LC at Sight (Irrevocable & Confirmed)',
-    photos: [
-      'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
-    ],
+    photos: [] as string[],
     description: '',
-    supplierCompanyName: 'Al Shaheed Yard Supply',
+    supplierCompanyName: '',
   });
 
   const loadData = async () => {
@@ -263,13 +261,20 @@ export const AdminMarketplace: React.FC = () => {
             >
               <div>
                 {/* Photo & Status Overlay */}
-                <div className="relative h-44 bg-slate-100 dark:bg-slate-950 overflow-hidden">
-                  <img
-                    src={item.photos?.[0] || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80'}
-                    alt={item.materialName}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
+                <div className="relative h-44 bg-slate-100 dark:bg-slate-950 overflow-hidden flex items-center justify-center">
+                  {item.photos?.[0] ? (
+                    <img
+                      src={item.photos[0]}
+                      alt={item.materialName}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-slate-400 gap-1.5 p-4">
+                      <Boxes className="w-8 h-8 text-slate-500" />
+                      <span className="text-[11px] font-medium text-slate-500">No Photo Available</span>
+                    </div>
+                  )}
                   <div className="absolute top-3 left-3">
                     <Badge status={item.status} size="sm" />
                   </div>

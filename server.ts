@@ -18,7 +18,7 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
   // Helper for current authenticated user from Authorization header / session token
-  const getAuthUser = (req: express.Request): User | null => {
+  const getAuthUser = async (req: express.Request): Promise<User | null> => {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       return null;
@@ -27,19 +27,23 @@ async function startServer() {
     if (!token || token === 'null' || token === 'undefined') {
       return null;
     }
-    // Match by token / user ID
-    const user = db.users.find((u) => u.id === token);
+    // Match by token / user ID using persistent db lookup
+    const user = await db.findUser(token);
     return user || null;
   };
 
   // Auth Middleware
-  const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const user = getAuthUser(req);
-    if (!user) {
-      return res.status(401).json({ error: 'Unauthorized. Authentication token required. Please sign in.' });
+  const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    try {
+      const user = await getAuthUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized. Authentication token required. Please sign in.' });
+      }
+      (req as any).user = user;
+      next();
+    } catch (err) {
+      return res.status(401).json({ error: 'Authentication verification failed.' });
     }
-    (req as any).user = user;
-    next();
   };
 
   const requireRole = (roles: UserRole[]) => {
@@ -66,7 +70,7 @@ async function startServer() {
   });
 
   // --- AUTHENTICATION ---
-  app.post('/api/auth/login', (req, res) => {
+  app.post('/api/auth/login', async (req, res) => {
     const { email, username, password, role } = req.body;
     const loginIdentifier = (username || email || '').trim().toLowerCase();
 
@@ -74,7 +78,7 @@ async function startServer() {
       return res.status(400).json({ error: 'Username or Email is required.' });
     }
 
-    let user: User | undefined;
+    let user: User | null = null;
 
     // 1. Admin login match (checks default "admin", custom admin username, or admin email)
     const admin = db.users.find((u) => u.role === 'ADMIN');
@@ -82,6 +86,7 @@ async function startServer() {
       admin &&
       (loginIdentifier === 'admin' ||
        loginIdentifier === 'admin@alshaheedrecycling.com' ||
+       (admin.username && admin.username.toLowerCase() === loginIdentifier) ||
        (admin.name && admin.name.toLowerCase() === loginIdentifier) ||
        (admin.email && admin.email.toLowerCase() === loginIdentifier) ||
        role === 'ADMIN')
@@ -91,23 +96,17 @@ async function startServer() {
 
     // 2. Exact email or username match for registered partners (Suppliers, Buyers, Agents)
     if (!user && loginIdentifier) {
-      user = db.users.find(
-        (u) =>
-          u.email.toLowerCase() === loginIdentifier ||
-          (u.name && u.name.toLowerCase() === loginIdentifier) ||
-          (u.companyName && u.companyName.toLowerCase() === loginIdentifier) ||
-          u.id.toLowerCase() === loginIdentifier
-      );
+      user = await db.findUser(loginIdentifier);
     }
 
     // 3. Fallback role match if explicitly supplied
     if (!user && role) {
-      user = db.users.find((u) => u.role === role);
+      user = db.users.find((u) => u.role === role) || null;
     }
 
     if (!user) {
       return res.status(401).json({
-        error: 'Account not found. Please verify your username (or email address) and password. If you are a new partner, please register first.',
+        error: `Account not found for "${loginIdentifier}". Please check your username or email address, or register a new partner account.`,
       });
     }
 
@@ -115,7 +114,15 @@ async function startServer() {
       return res.status(403).json({ error: `Account is ${user.status.toLowerCase()}. Please contact Al Shaheed Trade Administration.` });
     }
 
+    // Password validation (if user has password and password was provided)
+    if (user.password && password && user.password !== password) {
+      return res.status(401).json({
+        error: 'Incorrect password. Please check your credentials and try again.',
+      });
+    }
+
     user.lastLogin = new Date().toISOString();
+    await db.saveUser(user);
 
     db.addAuditLog({
       userId: user.id,
@@ -134,8 +141,8 @@ async function startServer() {
     });
   });
 
-  app.post('/api/auth/logout', (req, res) => {
-    const user = getAuthUser(req);
+  app.post('/api/auth/logout', async (req, res) => {
+    const user = await getAuthUser(req);
     if (user) {
       db.addAuditLog({
         userId: user.id,
@@ -151,11 +158,13 @@ async function startServer() {
     res.json({ success: true, message: 'Logged out successfully.' });
   });
 
-  app.post('/api/auth/register', (req, res) => {
+  app.post('/api/auth/register', async (req, res) => {
     const {
       role,
       email,
       name,
+      username,
+      password,
       companyName,
       phone,
       country,
@@ -175,14 +184,19 @@ async function startServer() {
       return res.status(400).json({ error: 'Email, Name, and Role are mandatory.' });
     }
 
-    const existing = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername = (username || email.split('@')[0]).trim().toLowerCase();
+
+    const existing = await db.findUser(cleanEmail);
     if (existing) {
-      return res.status(400).json({ error: 'An account with this email address already exists.' });
+      return res.status(400).json({ error: 'An account with this email address already exists. Please sign in.' });
     }
 
     const newUser: User = {
       id: `usr-${role.toLowerCase().slice(0, 3)}-${Date.now().toString().slice(-4)}`,
-      email,
+      email: cleanEmail,
+      username: cleanUsername,
+      password: password || 'password123',
       name,
       role: role as UserRole,
       companyName: companyName || name,
@@ -203,14 +217,15 @@ async function startServer() {
       lastLogin: new Date().toISOString(),
     };
 
-    db.users.push(newUser);
+    // Save to memory and Firestore cloud database
+    await db.saveUser(newUser);
 
     // Notify Admin
     db.addNotification({
       recipientId: 'ADMIN_ALL',
       recipientRole: 'ADMIN',
       title: `New ${role} Registered`,
-      message: `${name} (${companyName || 'Individual'}) registered from ${country || 'Qatar'}.`,
+      message: `${name} (${companyName || 'Individual'}) registered from ${country || 'Qatar'} with username "${cleanUsername}".`,
       type: 'INFO',
       linkUrl: `/admin/counterparties`,
       priority: 'NORMAL',
@@ -223,7 +238,7 @@ async function startServer() {
       action: 'USER_REGISTERED',
       entity: 'User',
       entityId: newUser.id,
-      newValue: `Role: ${role}, Company: ${companyName}`,
+      newValue: `Role: ${role}, Username: ${cleanUsername}, Company: ${companyName}`,
       ipAddress: req.ip || '127.0.0.1',
     });
 
@@ -239,7 +254,7 @@ async function startServer() {
   });
 
   // --- ADMIN CREDENTIALS UPDATE ---
-  app.post('/api/admin/credentials', requireAuth, requireRole(['ADMIN']), (req, res) => {
+  app.post('/api/admin/credentials', requireAuth, requireRole(['ADMIN']), async (req, res) => {
     const { username, email, password } = req.body;
     const admin = db.users.find((u) => u.role === 'ADMIN');
     if (!admin) {
@@ -249,13 +264,16 @@ async function startServer() {
     const prevUsername = admin.name;
     if (username && username.trim()) {
       admin.name = username.trim();
+      admin.username = username.trim().toLowerCase();
     }
     if (email && email.trim()) {
-      admin.email = email.trim();
+      admin.email = email.trim().toLowerCase();
     }
     if (password) {
-      (admin as any).password = password;
+      admin.password = password;
     }
+
+    await db.saveUser(admin);
 
     db.addAuditLog({
       userId: admin.id,
@@ -372,7 +390,7 @@ async function startServer() {
     res.json(db.sanitizeListingForBuyer(listing));
   });
 
-  app.post('/api/listings', requireAuth, requireRole(['ADMIN', 'SUPPLIER']), (req, res) => {
+  app.post('/api/listings', requireAuth, requireRole(['ADMIN', 'SUPPLIER']), async (req, res) => {
     const user = (req as any).user as User;
     const data = req.body;
 
@@ -423,7 +441,7 @@ async function startServer() {
       updatedAt: new Date().toISOString(),
     };
 
-    db.listings.unshift(newListing);
+    await db.saveListing(newListing);
 
     // Notify Admin
     db.addNotification({
@@ -450,7 +468,7 @@ async function startServer() {
     res.status(201).json(newListing);
   });
 
-  app.patch('/api/listings/:id/status', requireAuth, requireRole(['ADMIN']), (req, res) => {
+  app.patch('/api/listings/:id/status', requireAuth, requireRole(['ADMIN']), async (req, res) => {
     const { status, adminNotes } = req.body;
     const listing = db.listings.find((l) => l.id === req.params.id);
     if (!listing) return res.status(404).json({ error: 'Listing not found.' });
@@ -459,6 +477,8 @@ async function startServer() {
     listing.status = status;
     if (adminNotes) listing.adminNotes = adminNotes;
     listing.updatedAt = new Date().toISOString();
+
+    await db.saveListing(listing);
 
     // If marked SOLD or RESERVED, notify supplier
     db.addNotification({
@@ -487,7 +507,7 @@ async function startServer() {
   });
 
   // Admin / Supplier Update Listing
-  app.put('/api/listings/:id', requireAuth, requireRole(['ADMIN', 'SUPPLIER']), (req, res) => {
+  app.put('/api/listings/:id', requireAuth, requireRole(['ADMIN', 'SUPPLIER']), async (req, res) => {
     const listing = db.listings.find((l) => l.id === req.params.id);
     if (!listing) return res.status(404).json({ error: 'Listing not found.' });
 
@@ -498,6 +518,8 @@ async function startServer() {
       }
     });
     listing.updatedAt = new Date().toISOString();
+
+    await db.saveListing(listing);
 
     db.addAuditLog({
       userId: (req as any).user.id,
@@ -514,12 +536,12 @@ async function startServer() {
   });
 
   // Admin / Supplier Delete Listing
-  app.delete('/api/listings/:id', requireAuth, requireRole(['ADMIN', 'SUPPLIER']), (req, res) => {
+  app.delete('/api/listings/:id', requireAuth, requireRole(['ADMIN', 'SUPPLIER']), async (req, res) => {
     const index = db.listings.findIndex((l) => l.id === req.params.id);
     if (index === -1) return res.status(404).json({ error: 'Listing not found.' });
 
     const removed = db.listings[index];
-    db.listings.splice(index, 1);
+    await db.deleteListing(req.params.id);
 
     db.addAuditLog({
       userId: (req as any).user.id,
@@ -638,7 +660,7 @@ async function startServer() {
     res.json(list.map((r) => db.sanitizeRequirementForSupplier(r)));
   });
 
-  app.post('/api/requirements', requireAuth, requireRole(['BUYER', 'ADMIN']), (req, res) => {
+  app.post('/api/requirements', requireAuth, requireRole(['BUYER', 'ADMIN']), async (req, res) => {
     const user = (req as any).user as User;
     const data = req.body;
 
@@ -676,7 +698,7 @@ async function startServer() {
       updatedAt: new Date().toISOString(),
     };
 
-    db.requirements.unshift(newReq);
+    await db.saveRequirement(newReq);
 
     // Notify Admin
     db.addNotification({
@@ -704,7 +726,7 @@ async function startServer() {
   });
 
   // Admin / Buyer Update Requirement
-  app.put('/api/requirements/:id', requireAuth, requireRole(['ADMIN', 'BUYER']), (req, res) => {
+  app.put('/api/requirements/:id', requireAuth, requireRole(['ADMIN', 'BUYER']), async (req, res) => {
     const requirement = db.requirements.find((r) => r.id === req.params.id);
     if (!requirement) return res.status(404).json({ error: 'Requirement not found.' });
 
@@ -715,6 +737,8 @@ async function startServer() {
       }
     });
     requirement.updatedAt = new Date().toISOString();
+
+    await db.saveRequirement(requirement);
 
     db.addAuditLog({
       userId: (req as any).user.id,
@@ -731,12 +755,12 @@ async function startServer() {
   });
 
   // Admin / Buyer Delete Requirement
-  app.delete('/api/requirements/:id', requireAuth, requireRole(['ADMIN', 'BUYER']), (req, res) => {
+  app.delete('/api/requirements/:id', requireAuth, requireRole(['ADMIN', 'BUYER']), async (req, res) => {
     const index = db.requirements.findIndex((r) => r.id === req.params.id);
     if (index === -1) return res.status(404).json({ error: 'Requirement not found.' });
 
     const removed = db.requirements[index];
-    db.requirements.splice(index, 1);
+    await db.deleteRequirement(req.params.id);
 
     db.addAuditLog({
       userId: (req as any).user.id,
@@ -793,7 +817,7 @@ async function startServer() {
   });
 
   // Create Deal from Match Workspace
-  app.post('/api/matches/create-deal', requireAuth, requireRole(['ADMIN']), (req, res) => {
+  app.post('/api/matches/create-deal', requireAuth, requireRole(['ADMIN']), async (req, res) => {
     const {
       listingId,
       requirementId,
@@ -867,7 +891,7 @@ async function startServer() {
       updatedAt: new Date().toISOString(),
     };
 
-    db.transactions.unshift(newTxn);
+    await db.saveTransaction(newTxn);
 
     // If agent assigned, create assignment record
     if (selectedAgent) {
@@ -889,7 +913,7 @@ async function startServer() {
         assignedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      db.assignments.unshift(newAsg);
+      await db.saveAssignment(newAsg);
 
       // Notify Agent
       db.addNotification({
@@ -935,7 +959,7 @@ async function startServer() {
     res.json([]);
   });
 
-  app.patch('/api/transactions/:id/status', requireAuth, requireRole(['ADMIN']), (req, res) => {
+  app.patch('/api/transactions/:id/status', requireAuth, requireRole(['ADMIN']), async (req, res) => {
     const { status, paymentStatus, shipmentStatus } = req.body;
     const txn = db.transactions.find((t) => t.id === req.params.id);
     if (!txn) return res.status(404).json({ error: 'Transaction not found.' });
@@ -952,8 +976,11 @@ async function startServer() {
       if (listing) {
         listing.status = 'SOLD';
         listing.updatedAt = new Date().toISOString();
+        await db.saveListing(listing);
       }
     }
+
+    await db.saveTransaction(txn);
 
     db.addAuditLog({
       userId: (req as any).user.id,
@@ -970,7 +997,7 @@ async function startServer() {
     res.json(txn);
   });
 
-  app.post('/api/transactions/:id/cancel', requireAuth, requireRole(['ADMIN']), (req, res) => {
+  app.post('/api/transactions/:id/cancel', requireAuth, requireRole(['ADMIN']), async (req, res) => {
     const { reason, financialImpact, notes } = req.body;
     const txn = db.transactions.find((t) => t.id === req.params.id);
     if (!txn) return res.status(404).json({ error: 'Transaction not found.' });
@@ -989,7 +1016,10 @@ async function startServer() {
     const listing = db.listings.find((l) => l.id === txn.listingId);
     if (listing) {
       listing.status = 'AVAILABLE';
+      await db.saveListing(listing);
     }
+
+    await db.saveTransaction(txn);
 
     db.addAuditLog({
       userId: (req as any).user.id,
@@ -1038,7 +1068,7 @@ async function startServer() {
     res.status(403).json({ error: 'Unauthorized.' });
   });
 
-  app.post('/api/agents/assign', requireAuth, requireRole(['ADMIN']), (req, res) => {
+  app.post('/api/agents/assign', requireAuth, requireRole(['ADMIN']), async (req, res) => {
     const { listingId, agentId, quantityMT, agentRatePerTon, commercialTerms, targetSalesPrice } = req.body;
     const listing = db.listings.find((l) => l.id === listingId);
     const agent = db.users.find((u) => u.id === agentId && u.role === 'AGENT');
@@ -1070,10 +1100,11 @@ async function startServer() {
       updatedAt: new Date().toISOString(),
     };
 
-    db.assignments.unshift(assignment);
+    await db.saveAssignment(assignment);
     listing.assignedAgentId = agent.id;
     listing.assignedAgentName = agent.name;
     listing.agentRatePerTon = rate;
+    await db.saveListing(listing);
 
     // Notify Agent
     db.addNotification({
@@ -1100,7 +1131,7 @@ async function startServer() {
     res.status(201).json(assignment);
   });
 
-  app.post('/api/agent/assignments/:id/update', requireAuth, requireRole(['AGENT', 'ADMIN']), (req, res) => {
+  app.post('/api/agent/assignments/:id/update', requireAuth, requireRole(['AGENT', 'ADMIN']), async (req, res) => {
     const { status, note } = req.body;
     const assignment = db.assignments.find((a) => a.id === req.params.id);
     if (!assignment) return res.status(404).json({ error: 'Assignment not found.' });
@@ -1108,6 +1139,8 @@ async function startServer() {
     if (status) assignment.status = status;
     if (note) assignment.latestUpdate = note;
     assignment.updatedAt = new Date().toISOString();
+
+    await db.saveAssignment(assignment);
 
     // Admin Notification
     db.addNotification({
@@ -1157,19 +1190,24 @@ async function startServer() {
   });
 
   // Admin Add Counterparty
-  app.post('/api/counterparties', requireAuth, requireRole(['ADMIN']), (req, res) => {
-    const { role, email, name, companyName, phone, country, city, address, businessRegNumber, taxVatNumber, commodityCategories, status } = req.body;
+  app.post('/api/counterparties', requireAuth, requireRole(['ADMIN']), async (req, res) => {
+    const { role, email, name, username, password, companyName, phone, country, city, address, businessRegNumber, taxVatNumber, commodityCategories, status } = req.body;
     if (!email || !name || !role) {
       return res.status(400).json({ error: 'Role, Name, and Email are required.' });
     }
-    const existing = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    const cleanEmail = email.trim().toLowerCase();
+    const existing = await db.findUser(cleanEmail);
     if (existing) {
       return res.status(400).json({ error: 'A counterparty with this email address already exists.' });
     }
 
+    const cleanUsername = (username || email.split('@')[0]).trim().toLowerCase();
+
     const newUser: User = {
       id: `usr-${role.toLowerCase().slice(0, 3)}-${Date.now().toString().slice(-4)}`,
-      email,
+      email: cleanEmail,
+      username: cleanUsername,
+      password: password || 'password123',
       name,
       role: role as UserRole,
       companyName: companyName || name,
@@ -1185,7 +1223,7 @@ async function startServer() {
       lastLogin: new Date().toISOString(),
     };
 
-    db.users.push(newUser);
+    await db.saveUser(newUser);
     db.addAuditLog({
       userId: (req as any).user.id,
       userName: (req as any).user.name,
@@ -1201,16 +1239,18 @@ async function startServer() {
   });
 
   // Admin Update Counterparty
-  app.put('/api/counterparties/:id', requireAuth, requireRole(['ADMIN']), (req, res) => {
+  app.put('/api/counterparties/:id', requireAuth, requireRole(['ADMIN']), async (req, res) => {
     const user = db.users.find((u) => u.id === req.params.id);
     if (!user) return res.status(404).json({ error: 'Counterparty not found.' });
 
-    const allowed = ['name', 'companyName', 'email', 'phone', 'country', 'city', 'address', 'businessRegNumber', 'taxVatNumber', 'commodityCategories', 'status'];
+    const allowed = ['name', 'username', 'password', 'companyName', 'email', 'phone', 'country', 'city', 'address', 'businessRegNumber', 'taxVatNumber', 'commodityCategories', 'status'];
     allowed.forEach((field) => {
       if (req.body[field] !== undefined) {
         (user as any)[field] = req.body[field];
       }
     });
+
+    await db.saveUser(user);
 
     db.addAuditLog({
       userId: (req as any).user.id,
@@ -1227,7 +1267,7 @@ async function startServer() {
   });
 
   // Admin Delete / Remove Counterparty
-  app.delete('/api/counterparties/:id', requireAuth, requireRole(['ADMIN']), (req, res) => {
+  app.delete('/api/counterparties/:id', requireAuth, requireRole(['ADMIN']), async (req, res) => {
     const index = db.users.findIndex((u) => u.id === req.params.id);
     if (index === -1) return res.status(404).json({ error: 'Counterparty not found.' });
 
@@ -1236,7 +1276,8 @@ async function startServer() {
       return res.status(400).json({ error: 'Cannot delete primary Admin account.' });
     }
 
-    db.users.splice(index, 1);
+    await db.deleteUser(req.params.id);
+
     db.addAuditLog({
       userId: (req as any).user.id,
       userName: (req as any).user.name,
@@ -1252,19 +1293,24 @@ async function startServer() {
   });
 
   // Admin Add Agent
-  app.post('/api/agents', requireAuth, requireRole(['ADMIN']), (req, res) => {
-    const { email, name, phone, country, city, tradingRegion, languages, experienceYears } = req.body;
+  app.post('/api/agents', requireAuth, requireRole(['ADMIN']), async (req, res) => {
+    const { email, name, username, password, phone, country, city, tradingRegion, languages, experienceYears } = req.body;
     if (!email || !name) {
       return res.status(400).json({ error: 'Agent Name and Email are required.' });
     }
-    const existing = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    const cleanEmail = email.trim().toLowerCase();
+    const existing = await db.findUser(cleanEmail);
     if (existing) {
       return res.status(400).json({ error: 'An agent with this email address already exists.' });
     }
 
+    const cleanUsername = (username || email.split('@')[0]).trim().toLowerCase();
+
     const newAgent: User = {
       id: `usr-agt-${Date.now().toString().slice(-4)}`,
-      email,
+      email: cleanEmail,
+      username: cleanUsername,
+      password: password || 'password123',
       name,
       role: 'AGENT',
       companyName: `${name} Brokerage Representation`,
@@ -1279,7 +1325,8 @@ async function startServer() {
       lastLogin: new Date().toISOString(),
     };
 
-    db.users.push(newAgent);
+    await db.saveUser(newAgent);
+
     db.addAuditLog({
       userId: (req as any).user.id,
       userName: (req as any).user.name,
@@ -1295,16 +1342,18 @@ async function startServer() {
   });
 
   // Admin Update Agent
-  app.put('/api/agents/:id', requireAuth, requireRole(['ADMIN']), (req, res) => {
+  app.put('/api/agents/:id', requireAuth, requireRole(['ADMIN']), async (req, res) => {
     const agent = db.users.find((u) => u.id === req.params.id && u.role === 'AGENT');
     if (!agent) return res.status(404).json({ error: 'Agent not found.' });
 
-    const allowed = ['name', 'email', 'phone', 'country', 'city', 'tradingRegion', 'languages', 'experienceYears', 'status'];
+    const allowed = ['name', 'username', 'password', 'email', 'phone', 'country', 'city', 'tradingRegion', 'languages', 'experienceYears', 'status'];
     allowed.forEach((field) => {
       if (req.body[field] !== undefined) {
         (agent as any)[field] = req.body[field];
       }
     });
+
+    await db.saveUser(agent);
 
     db.addAuditLog({
       userId: (req as any).user.id,
@@ -1321,12 +1370,12 @@ async function startServer() {
   });
 
   // Admin Delete Agent
-  app.delete('/api/agents/:id', requireAuth, requireRole(['ADMIN']), (req, res) => {
+  app.delete('/api/agents/:id', requireAuth, requireRole(['ADMIN']), async (req, res) => {
     const index = db.users.findIndex((u) => u.id === req.params.id && u.role === 'AGENT');
     if (index === -1) return res.status(404).json({ error: 'Agent not found.' });
 
     const removed = db.users[index];
-    db.users.splice(index, 1);
+    await db.deleteUser(req.params.id);
 
     db.addAuditLog({
       userId: (req as any).user.id,
@@ -1381,7 +1430,7 @@ async function startServer() {
     return res.json(db.documents.filter((d) => d.accessRoles.includes(user.role)));
   });
 
-  app.post('/api/documents', requireAuth, requireRole(['ADMIN', 'SUPPLIER', 'BUYER']), (req, res) => {
+  app.post('/api/documents', requireAuth, requireRole(['ADMIN', 'SUPPLIER', 'BUYER']), async (req, res) => {
     const user = (req as any).user as User;
     const { title, documentType, fileName, fileSize, fileUrl, transactionId, listingId, accessRoles } = req.body;
 
@@ -1400,7 +1449,7 @@ async function startServer() {
       status: user.role === 'ADMIN' ? 'VERIFIED' : 'DRAFT',
     };
 
-    db.documents.unshift(doc);
+    await db.saveTradeDocument(doc);
 
     db.addAuditLog({
       userId: user.id,

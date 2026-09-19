@@ -31,6 +31,12 @@ import {
   INITIAL_AUDIT_LOGS,
   DEFAULT_SYSTEM_SETTINGS,
 } from '../src/constants/tradeData.js';
+import {
+  fetchCollection,
+  saveDocument,
+  deleteDocument,
+  findUserInFirestore,
+} from './firestore.js';
 
 class TradingDatabase {
   users: User[] = [];
@@ -45,17 +51,25 @@ class TradingDatabase {
   notifications: Notification[] = [];
   auditLogs: AuditLog[] = [];
   settings: SystemSettings = { ...DEFAULT_SYSTEM_SETTINGS };
+  private initialized = false;
 
   constructor() {
     this.seedInitialData();
+    this.syncWithFirestore();
   }
 
   seedInitialData() {
-    this.users = JSON.parse(JSON.stringify(INITIAL_USERS));
-    // Enforce admin user name is strictly 'admin'
+    this.users = JSON.parse(JSON.stringify(INITIAL_USERS)).map((u: User) => ({
+      ...u,
+      username: u.name === 'admin' ? 'admin' : (u.email ? u.email.split('@')[0].toLowerCase() : u.name.toLowerCase().replace(/\s+/g, '')),
+      password: u.role === 'ADMIN' ? 'admin123' : 'password123',
+    }));
+    // Enforce admin user credentials
     const admin = this.users.find((u) => u.role === 'ADMIN');
     if (admin) {
       admin.name = 'admin';
+      admin.username = 'admin';
+      admin.password = 'admin123';
     }
     this.listings = JSON.parse(JSON.stringify(INITIAL_LISTINGS));
     this.requirements = JSON.parse(JSON.stringify(INITIAL_REQUIREMENTS));
@@ -67,7 +81,178 @@ class TradingDatabase {
     this.settings = JSON.parse(JSON.stringify(DEFAULT_SYSTEM_SETTINGS));
   }
 
-  // Audit Logger
+  async syncWithFirestore() {
+    try {
+      console.log('[Firestore] Synchronizing database state with cloud store...');
+      // 1. Sync Users
+      const remoteUsers = await fetchCollection<User>('users');
+      if (remoteUsers && remoteUsers.length > 0) {
+        // Exclude any legacy sample accounts if they exist in remote store
+        const cleanRemoteUsers = remoteUsers.filter(
+          (u) =>
+            !u.id.startsWith('usr-sup-') &&
+            !u.id.startsWith('usr-buy-') &&
+            !u.id.startsWith('usr-agt-') &&
+            !u.email?.includes('@example.com')
+        );
+        const userMap = new Map<string, User>();
+        this.users.forEach((u) => userMap.set(u.id, u));
+        cleanRemoteUsers.forEach((u) => userMap.set(u.id, u));
+        this.users = Array.from(userMap.values());
+        console.log(`[Firestore] Loaded ${cleanRemoteUsers.length} persistent accounts.`);
+      } else {
+        console.log('[Firestore] Initializing clean admin account in cloud store...');
+        for (const u of this.users) {
+          await saveDocument('users', u);
+        }
+      }
+
+      // 2. Sync Listings
+      const remoteListings = await fetchCollection<ScrapListing>('listings');
+      this.listings = remoteListings || [];
+
+      // 3. Sync Requirements
+      const remoteReqs = await fetchCollection<BuyerRequirement>('requirements');
+      this.requirements = remoteReqs || [];
+
+      // 4. Sync Transactions
+      const remoteTxns = await fetchCollection<Transaction>('transactions');
+      this.transactions = remoteTxns || [];
+
+      // 5. Sync Agent Assignments
+      const remoteAsgs = await fetchCollection<AgentAssignment>('agentAssignments');
+      this.assignments = remoteAsgs || [];
+
+      // 6. Sync Trade Documents
+      const remoteDocs = await fetchCollection<TradeDocument>('tradeDocuments');
+      this.documents = remoteDocs || [];
+
+      this.initialized = true;
+      console.log('[Firestore] Database synchronization successfully active.');
+    } catch (err) {
+      console.warn('[Firestore] Sync notice (running with resilient cache):', err);
+    }
+  }
+
+  // Find user by identifier (email, username, name, companyName, or ID)
+  async findUser(identifier: string): Promise<User | null> {
+    const cleanId = (identifier || '').trim().toLowerCase();
+    if (!cleanId) return null;
+
+    // Check memory first
+    const found = this.users.find(
+      (u) =>
+        u.id.toLowerCase() === cleanId ||
+        (u.email && u.email.toLowerCase() === cleanId) ||
+        (u.username && u.username.toLowerCase() === cleanId) ||
+        (u.name && u.name.toLowerCase() === cleanId) ||
+        (u.companyName && u.companyName.toLowerCase() === cleanId)
+    );
+    if (found) return found;
+
+    // Fallback query directly to Firestore
+    const remoteUser = await findUserInFirestore(identifier);
+    if (remoteUser) {
+      const idx = this.users.findIndex((u) => u.id === remoteUser.id);
+      if (idx >= 0) {
+        this.users[idx] = remoteUser;
+      } else {
+        this.users.push(remoteUser);
+      }
+      return remoteUser;
+    }
+
+    return null;
+  }
+
+  // Persistent User CRUD
+  async saveUser(user: User): Promise<User> {
+    const idx = this.users.findIndex((u) => u.id === user.id);
+    if (idx >= 0) {
+      this.users[idx] = user;
+    } else {
+      this.users.push(user);
+    }
+    await saveDocument('users', user);
+    return user;
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    this.users = this.users.filter((u) => u.id !== userId);
+    await deleteDocument('users', userId);
+  }
+
+  // Persistent Listing CRUD
+  async saveListing(listing: ScrapListing): Promise<ScrapListing> {
+    const idx = this.listings.findIndex((l) => l.id === listing.id);
+    if (idx >= 0) {
+      this.listings[idx] = listing;
+    } else {
+      this.listings.unshift(listing);
+    }
+    await saveDocument('listings', listing);
+    return listing;
+  }
+
+  async deleteListing(listingId: string): Promise<void> {
+    this.listings = this.listings.filter((l) => l.id !== listingId);
+    await deleteDocument('listings', listingId);
+  }
+
+  // Persistent Requirement CRUD
+  async saveRequirement(req: BuyerRequirement): Promise<BuyerRequirement> {
+    const idx = this.requirements.findIndex((r) => r.id === req.id);
+    if (idx >= 0) {
+      this.requirements[idx] = req;
+    } else {
+      this.requirements.unshift(req);
+    }
+    await saveDocument('requirements', req);
+    return req;
+  }
+
+  async deleteRequirement(reqId: string): Promise<void> {
+    this.requirements = this.requirements.filter((r) => r.id !== reqId);
+    await deleteDocument('requirements', reqId);
+  }
+
+  // Persistent Transaction CRUD
+  async saveTransaction(txn: Transaction): Promise<Transaction> {
+    const idx = this.transactions.findIndex((t) => t.id === txn.id);
+    if (idx >= 0) {
+      this.transactions[idx] = txn;
+    } else {
+      this.transactions.unshift(txn);
+    }
+    await saveDocument('transactions', txn);
+    return txn;
+  }
+
+  // Persistent Agent Assignment CRUD
+  async saveAssignment(asg: AgentAssignment): Promise<AgentAssignment> {
+    const idx = this.assignments.findIndex((a) => a.id === asg.id);
+    if (idx >= 0) {
+      this.assignments[idx] = asg;
+    } else {
+      this.assignments.unshift(asg);
+    }
+    await saveDocument('agentAssignments', asg);
+    return asg;
+  }
+
+  // Persistent Trade Document CRUD
+  async saveTradeDocument(docObj: TradeDocument): Promise<TradeDocument> {
+    const idx = this.documents.findIndex((d) => d.id === docObj.id);
+    if (idx >= 0) {
+      this.documents[idx] = docObj;
+    } else {
+      this.documents.unshift(docObj);
+    }
+    await saveDocument('tradeDocuments', docObj);
+    return docObj;
+  }
+
+  // Audit Logger with Firestore persistence
   addAuditLog(entry: Omit<AuditLog, 'id' | 'timestamp'>) {
     const log: AuditLog = {
       id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -75,10 +260,11 @@ class TradingDatabase {
       timestamp: new Date().toISOString(),
     };
     this.auditLogs.unshift(log);
+    saveDocument('auditLogs', log).catch(() => {});
     return log;
   }
 
-  // Notifications
+  // Notifications with Firestore persistence
   addNotification(entry: Omit<Notification, 'id' | 'createdAt' | 'isRead'>) {
     const notif: Notification = {
       id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -87,6 +273,7 @@ class TradingDatabase {
       createdAt: new Date().toISOString(),
     };
     this.notifications.unshift(notif);
+    saveDocument('notifications', notif).catch(() => {});
     return notif;
   }
 

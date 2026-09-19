@@ -60,8 +60,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // --- LOGIN FORM STATE ---
-  const [loginEmail, setLoginEmail] = useState('admin');
-  const [loginPassword, setLoginPassword] = useState('admin123');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
 
   // --- REGISTRATION FORM STATES ---
   // Supplier Registration State
@@ -70,17 +70,18 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     businessRegNumber: '',
     taxVatNumber: '',
     contactName: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
     phone: '',
     country: 'Qatar',
     city: 'Doha',
-    address: 'Industrial Area, Street 810, Yard 45',
+    address: '',
     commodityCategories: ['Metal Scrap'],
-    typicalVolume: '500 - 2,500 MT / Month',
+    typicalVolume: '',
     preferredIncoterms: 'FOB',
-    loadingPort: 'Hamad Port (Doha)',
+    loadingPort: '',
     agreedToTerms: true,
   });
 
@@ -88,16 +89,17 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   const [buyerForm, setBuyerForm] = useState({
     companyName: '',
     contactName: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
     phone: '',
-    country: 'India',
-    city: 'Mumbai',
+    country: 'Qatar',
+    city: 'Doha',
     taxVatNumber: '',
     commodityCategories: ['Metal Scrap'],
-    typicalVolume: '1,000 - 5,000 MT / Month',
-    destinationPort: 'Nhava Sheva (JNPT Mumbai)',
+    typicalVolume: '',
+    destinationPort: '',
     preferredPaymentTerms: '100% LC at Sight (Irrevocable & Confirmed)',
     preferredIncoterms: 'CIF',
     agreedToTerms: true,
@@ -107,16 +109,17 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   const [agentForm, setAgentForm] = useState({
     fullName: '',
     agencyName: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
     phone: '',
     country: 'Qatar',
     city: 'Doha',
-    commodityCategories: ['Metal Scrap', 'Paper Waste'],
-    tradingRegion: 'GCC & South Asia Trade Corridors',
-    languages: 'Arabic, English, Hindi',
-    experienceYears: 5,
+    commodityCategories: ['Metal Scrap'],
+    tradingRegion: '',
+    languages: 'English',
+    experienceYears: 0,
     agreedToTerms: true,
   });
 
@@ -161,6 +164,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         role: 'SUPPLIER',
         name: supplierForm.contactName,
         companyName: supplierForm.companyName,
+        username: supplierForm.username || undefined,
         email: supplierForm.email,
         password: supplierForm.password,
         phone: supplierForm.phone,
@@ -207,6 +211,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         role: 'BUYER',
         name: buyerForm.contactName,
         companyName: buyerForm.companyName,
+        username: buyerForm.username || undefined,
         email: buyerForm.email,
         password: buyerForm.password,
         phone: buyerForm.phone,
@@ -252,6 +257,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         role: 'AGENT',
         name: agentForm.fullName,
         companyName: agentForm.agencyName || `${agentForm.fullName} Brokerage`,
+        username: agentForm.username || undefined,
         email: agentForm.email,
         password: agentForm.password,
         phone: agentForm.phone,
@@ -384,6 +390,10 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                 <p className="text-xs text-slate-500 mt-1">
                   Enter your credentials to access the Al Shaheed trading desk.
                 </p>
+                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 font-medium">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Continuous login with your username or email & password</span>
+                </div>
               </div>
 
               {/* Form */}
@@ -415,9 +425,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Password
                     </label>
-                    <span className="text-[11px] text-slate-400 font-mono">
-                      Default: admin123
-                    </span>
                   </div>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -516,6 +523,10 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               <p className="text-sm text-slate-600 mt-1">
                 Select your entity category below to join our verified scrap trading and brokerage network.
               </p>
+              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-emerald-200 text-xs text-slate-700 shadow-xs">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span><strong>Persistent Account Guarantee:</strong> Saved permanently in the database. Log in &amp; out anytime with your chosen username or email.</span>
+              </div>
             </div>
 
             {/* Registration Role Sub-tabs */}
@@ -638,6 +649,19 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                         placeholder="e.g. TIN-994821"
                         value={supplierForm.taxVatNumber}
                         onChange={(e) => setSupplierForm({ ...supplierForm, taxVatNumber: e.target.value })}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Choose Username (For Persistent Login)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. gulfsupplier"
+                        value={supplierForm.username}
+                        onChange={(e) => setSupplierForm({ ...supplierForm, username: e.target.value })}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-mono"
                       />
                     </div>
@@ -875,6 +899,19 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Choose Username (For Persistent Login)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. bharatsteel"
+                        value={buyerForm.username}
+                        onChange={(e) => setBuyerForm({ ...buyerForm, username: e.target.value })}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                         Corporate Purchasing Email *
                       </label>
                       <input
@@ -1103,6 +1140,19 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                         value={agentForm.agencyName}
                         onChange={(e) => setAgentForm({ ...agentForm, agencyName: e.target.value })}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Choose Username (For Persistent Login)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. khalidbroker"
+                        value={agentForm.username}
+                        onChange={(e) => setAgentForm({ ...agentForm, username: e.target.value })}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-mono"
                       />
                     </div>
 

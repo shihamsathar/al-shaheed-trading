@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { Badge } from '../common/Badge';
-import { TRADE_PHOTOS } from '../../constants/photos';
 import {
   Boxes,
   PlusCircle,
@@ -70,22 +69,13 @@ export const SupplierDashboard: React.FC<SupplierDashboardProps> = ({ onNavigate
 
   return (
     <div className="space-y-8 pb-16">
-      {/* High-End Hero Banner with Steel Smelting / Recycling Photography */}
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-emerald-500/20 bg-slate-950">
-        {/* Photo Layer */}
-        <div className="absolute inset-0 z-0">
-          <img
-            src={TRADE_PHOTOS.STEEL_MILL_SMELTING}
-            alt="Scrap Metal Processing Facility"
-            referrerPolicy="no-referrer"
-            className="w-full h-full object-cover object-center opacity-30 filter brightness-90 contrast-110"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
-        </div>
+      {/* High-End Clean Hero Banner */}
+      <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-emerald-500/20 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/70 p-6 sm:p-8 lg:p-10">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Content */}
-        <div className="relative z-10 p-6 sm:p-8 lg:p-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-400/30 mb-4 backdrop-blur-md">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
@@ -195,13 +185,17 @@ export const SupplierDashboard: React.FC<SupplierDashboardProps> = ({ onNavigate
                 className="bg-slate-900/90 backdrop-blur-md rounded-2xl border border-emerald-900/30 p-4.5 hover:border-emerald-500/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-800 shrink-0 border border-slate-700">
-                    <img
-                      src={l.photos?.[0] || TRADE_PHOTOS.HMS_STEEL_SCRAP}
-                      alt={l.materialName}
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-800 shrink-0 border border-slate-700 flex items-center justify-center">
+                    {l.photos?.[0] ? (
+                      <img
+                        src={l.photos[0]}
+                        alt={l.materialName}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Boxes className="w-6 h-6 text-slate-600" />
+                    )}
                   </div>
                   <div>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
