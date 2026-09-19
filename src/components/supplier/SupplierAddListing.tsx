@@ -73,17 +73,17 @@ export const SupplierAddListing: React.FC<SupplierAddListingProps> = ({ onNaviga
           List New Industrial Scrap Material Lot
         </h1>
         <p className="text-xs text-slate-500">
-          Upload scrap lots with high-resolution photos, ISRI grades, loading port, and commercial parameters.
+          Upload scrap lots with high-resolution photos, ISRI grades, and commercial terms. All submissions reflect privately on the Admin desk first for quality verification before being published or connected to buyers.
         </p>
       </div>
 
       {success && (
-        <div className="p-4 rounded-2xl bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-3 animate-in fade-in">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+        <div className="p-4 rounded-2xl bg-amber-500/10 text-amber-900 dark:text-amber-200 border border-amber-400/40 flex items-center gap-3 animate-in fade-in">
+          <CheckCircle2 className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
           <div>
-            <strong className="block text-sm font-bold">Scrap Material Successfully Listed!</strong>
+            <strong className="block text-sm font-bold">Scrap Material Submitted to Admin Desk!</strong>
             <span className="text-xs">
-              Al Shaheed trading desk has notified active buyers and matching agents. Redirecting to your inventory...
+              Your photos and lot specifications have been sent to Admin review. The Admin will verify the lot, assign marketing parameters, and publish it or connect you directly with prospective buyers. Redirecting to your inventory...
             </span>
           </div>
         </div>

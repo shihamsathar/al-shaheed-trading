@@ -430,15 +430,15 @@ class TradingDatabase {
       qualitySpecification: listing.qualitySpecification,
       inspectionAvailable: listing.inspectionAvailable,
       minOrderQuantity: listing.minOrderQuantity,
-      availabilityDate: listing.availabilityDate,
-      validUntil: listing.validUntil,
+      availabilityDate: 'Prompt Ocean Dispatch (Verified by Al Shaheed)',
+      validUntil: 'Active Trade Window',
       paymentTerms: listing.paymentTerms,
       incoterms: listing.incoterms,
       photos: listing.photos,
       status: listing.status,
-      createdAt: listing.createdAt,
-      updatedAt: listing.updatedAt,
-      // CONFIDENTIAL DATA EXCLUDED (Supplier name, email, phone, company, profit, margin)
+      isPublished: listing.isPublished,
+      publishedAt: listing.publishedAt,
+      // CONFIDENTIAL DATA EXCLUDED: Supplier name, email, phone, company, exact posting dates
     };
   }
 
@@ -454,15 +454,15 @@ class TradingDatabase {
       currency: req.currency,
       destinationCountry: req.destinationCountry,
       destinationPort: req.destinationPort,
-      requiredDeliveryDate: req.requiredDeliveryDate,
+      requiredDeliveryDate: 'Prompt Cargo Acceptance (Coordinated by Al Shaheed)',
       packaging: req.packaging,
       qualityRequirements: req.qualityRequirements,
       inspectionRequired: req.inspectionRequired,
       paymentTerms: req.paymentTerms,
       incoterms: req.incoterms,
       status: req.status,
-      createdAt: req.createdAt,
-      // CONFIDENTIAL DATA EXCLUDED (Buyer name, company, email, phone)
+      isPublished: req.isPublished,
+      // CONFIDENTIAL DATA EXCLUDED: Buyer name, company, email, phone, exact posting dates
     };
   }
 

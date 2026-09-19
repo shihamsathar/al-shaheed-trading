@@ -9,12 +9,14 @@ export type ListingStatus =
   | 'AVAILABLE' 
   | 'PENDING_REVIEW' 
   | 'RESERVED' 
+  | 'MATCHED'
   | 'SOLD' 
   | 'EXPIRED' 
   | 'ARCHIVED';
 
 export type DemandStatus = 
   | 'ACTIVE' 
+  | 'PENDING_REVIEW'
   | 'MATCHED' 
   | 'FULFILLED' 
   | 'CANCELLED';
@@ -104,6 +106,8 @@ export interface ScrapListing {
   incoterms: string;         // "FOB", "CIF", "CFR", "EXW"
   photos: string[];
   status: ListingStatus;
+  isPublished?: boolean;
+  publishedAt?: string;
   adminPublishedPrice?: boolean;
   assignedAgentId?: string;
   assignedAgentName?: string;
@@ -152,6 +156,8 @@ export interface BuyerRequirement {
   incoterms: string;
   additionalRequirements?: string;
   status: DemandStatus;
+  isPublished?: boolean;
+  publishedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

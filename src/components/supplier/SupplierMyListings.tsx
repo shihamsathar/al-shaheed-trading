@@ -13,6 +13,9 @@ import {
   Ship,
   DollarSign,
   Package,
+  Globe,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface SupplierMyListingsProps {
@@ -59,11 +62,17 @@ export const SupplierMyListings: React.FC<SupplierMyListingsProps> = ({ onNaviga
 
         <button
           onClick={() => onNavigate('supplier-add-listing')}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all self-start sm:self-auto"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all self-start sm:self-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           List New Scrap Lot
         </button>
+      </div>
+
+      {/* Admin Curated Desk Notice */}
+      <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 flex items-center gap-2.5">
+        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+        <span>All uploaded scrap materials and photos are submitted directly to the Al Shaheed Admin desk. Admin reviews each lot and publishes it to the marketplace or connects qualified buyers directly.</span>
       </div>
 
       {loading ? (
@@ -105,8 +114,17 @@ export const SupplierMyListings: React.FC<SupplierMyListingsProps> = ({ onNaviga
                       <span className="text-[11px] font-medium text-slate-500">No Photo Attached</span>
                     </div>
                   )}
-                  <div className="absolute top-3 left-3">
+                  <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
                     <Badge status={item.status} size="sm" />
+                    {item.isPublished ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-600/90 text-white backdrop-blur-xs shadow-xs">
+                        <Globe className="w-2.5 h-2.5" /> Published on Board
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/90 text-white backdrop-blur-xs shadow-xs">
+                        <Lock className="w-2.5 h-2.5" /> Private to Admin (Under Review)
+                      </span>
+                    )}
                   </div>
                   <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-slate-950/80 backdrop-blur-xs text-white text-xs font-black">
                     ${item.pricePerUnit}/{item.quantityUnit}

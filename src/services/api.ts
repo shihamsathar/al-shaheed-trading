@@ -137,6 +137,15 @@ export const api = {
     return handleResponse<any>(res);
   },
 
+  async publishListing(id: string, isPublished: boolean) {
+    const res = await fetch(`${API_BASE}/listings/${id}/publish`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify({ isPublished }),
+    });
+    return handleResponse<{ success: boolean; listing: any }>(res);
+  },
+
   async expressInterest(listingId: string, payload?: { proposedQuantity?: number; proposedPrice?: number; message?: string }) {
     const res = await fetch(`${API_BASE}/listings/${listingId}/interest`, {
       method: 'POST',
@@ -181,6 +190,15 @@ export const api = {
     return handleResponse<{ success: boolean; message: string }>(res);
   },
 
+  async publishRequirement(id: string, isPublished: boolean) {
+    const res = await fetch(`${API_BASE}/requirements/${id}/publish`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify({ isPublished }),
+    });
+    return handleResponse<{ success: boolean; requirement: any }>(res);
+  },
+
   // Matches & Workspace
   async getMatches() {
     const res = await fetch(`${API_BASE}/matches`, {
@@ -200,6 +218,15 @@ export const api = {
 
   async createDealFromMatch(payload: any) {
     const res = await fetch(`${API_BASE}/matches/create-deal`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async connectParties(payload: any) {
+    const res = await fetch(`${API_BASE}/admin/connect-parties`, {
       method: 'POST',
       headers: getAuthHeader(),
       body: JSON.stringify(payload),

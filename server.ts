@@ -337,28 +337,31 @@ async function startServer() {
     }
 
     if (user.role === 'SUPPLIER') {
-      // Supplier sees their own listings with full details + anonymized public marketplace listings
-      const result = list.map((l) => {
-        if (l.supplierId === user.id) return l;
-        return db.sanitizeListingForBuyer(l);
-      });
+      // Supplier sees their own listings with full details (including PENDING_REVIEW)
+      // PLUS ONLY other listings that are APPROVED & PUBLISHED by Admin
+      const result = list
+        .filter((l) => l.supplierId === user.id || (l.isPublished === true && l.status === 'AVAILABLE'))
+        .map((l) => {
+          if (l.supplierId === user.id) return l;
+          return db.sanitizeListingForBuyer(l);
+        });
       return res.json(result);
     }
 
     if (user.role === 'BUYER') {
-      // Buyer gets completely sanitized counterparty details
+      // Buyer ONLY gets listings that are APPROVED & PUBLISHED by Admin
       const result = list
-        .filter((l) => l.status === 'AVAILABLE' || l.status === 'SOLD' || l.status === 'RESERVED')
+        .filter((l) => l.isPublished === true && (l.status === 'AVAILABLE' || l.status === 'SOLD' || l.status === 'RESERVED'))
         .map((l) => db.sanitizeListingForBuyer(l));
       return res.json(result);
     }
 
     if (user.role === 'AGENT') {
-      // Agent sees materials assigned to them or approved by admin
+      // Agent sees materials assigned to them or approved & published by admin
       const agentAssignments = db.assignments.filter((a) => a.agentId === user.id);
       const assignedListingIds = agentAssignments.map((a) => a.listingId);
       const result = list
-        .filter((l) => assignedListingIds.includes(l.id) || l.assignedAgentId === user.id)
+        .filter((l) => assignedListingIds.includes(l.id) || l.assignedAgentId === user.id || l.isPublished === true)
         .map((l) => {
           const assignment = agentAssignments.find((a) => a.listingId === l.id);
           return db.sanitizeListingForAgent(l, assignment);
@@ -376,6 +379,11 @@ async function startServer() {
 
     if (user.role === 'ADMIN' || (user.role === 'SUPPLIER' && listing.supplierId === user.id)) {
       return res.json(listing);
+    }
+
+    // If unapproved/pending review, non-admins cannot access it
+    if (listing.isPublished !== true && listing.supplierId !== user.id) {
+      return res.status(403).json({ error: 'This listing is pending admin review and publication.' });
     }
 
     if (user.role === 'BUYER') {
@@ -401,6 +409,9 @@ async function startServer() {
     if (!data.photos || data.photos.length === 0) {
       return res.status(400).json({ error: 'At least 1 photo is required for the scrap listing.' });
     }
+
+    const isSupplier = user.role === 'SUPPLIER';
+    const isPublished = !isSupplier; // Only Admin can publish directly; Supplier listings require Admin approval
 
     const newListing: ScrapListing = {
       id: `lst-${Date.now().toString().slice(-4)}`,
@@ -433,7 +444,9 @@ async function startServer() {
       paymentTerms: data.paymentTerms || '100% LC at Sight (Irrevocable & Confirmed)',
       incoterms: data.incoterms || 'CFR',
       photos: Array.isArray(data.photos) ? data.photos : [data.photos],
-      status: user.role === 'ADMIN' ? 'AVAILABLE' : 'AVAILABLE',
+      status: isPublished ? 'AVAILABLE' : 'PENDING_REVIEW',
+      isPublished,
+      publishedAt: isPublished ? new Date().toISOString() : undefined,
       adminPublishedPrice: true,
       interestedBuyerCount: 0,
       matchedDemandCount: 0,
@@ -447,8 +460,8 @@ async function startServer() {
     db.addNotification({
       recipientId: 'ADMIN_ALL',
       recipientRole: 'ADMIN',
-      title: 'New Scrap Material Listed',
-      message: `${user.companyName || user.name} listed ${newListing.quantity} MT of ${newListing.materialName} @ $${newListing.pricePerUnit}/MT.`,
+      title: isSupplier ? 'New Supplier Lot Submitted for Admin Approval' : 'New Scrap Material Listed',
+      message: `${user.companyName || user.name} uploaded ${newListing.quantity} MT of ${newListing.materialName} @ $${newListing.pricePerUnit}/MT with ${newListing.photos.length} photo(s). ${isSupplier ? 'Awaiting your review to publish to Buyer & Agent dashboards.' : 'Published to live marketplace.'}`,
       type: 'INFO',
       linkUrl: '/admin/marketplace',
       priority: 'HIGH',
@@ -461,11 +474,53 @@ async function startServer() {
       action: 'LISTING_CREATED',
       entity: 'ScrapListing',
       entityId: newListing.id,
-      newValue: `${newListing.quantity} MT ${newListing.materialName} @ $${newListing.pricePerUnit}/MT`,
+      newValue: `${newListing.quantity} MT ${newListing.materialName} @ $${newListing.pricePerUnit}/MT (isPublished: ${isPublished})`,
       ipAddress: req.ip || '127.0.0.1',
     });
 
     res.status(201).json(newListing);
+  });
+
+  // Admin Publish / Unpublish Listing
+  app.post('/api/listings/:id/publish', requireAuth, requireRole(['ADMIN']), async (req, res) => {
+    const listing = db.listings.find((l) => l.id === req.params.id);
+    if (!listing) return res.status(404).json({ error: 'Listing not found.' });
+
+    const shouldPublish = req.body.isPublished !== undefined ? Boolean(req.body.isPublished) : !listing.isPublished;
+    listing.isPublished = shouldPublish;
+    listing.status = shouldPublish ? 'AVAILABLE' : 'PENDING_REVIEW';
+    if (shouldPublish) {
+      listing.publishedAt = new Date().toISOString();
+    }
+    listing.updatedAt = new Date().toISOString();
+
+    await db.saveListing(listing);
+
+    // Notify supplier of publication status
+    db.addNotification({
+      recipientId: listing.supplierId,
+      recipientRole: 'SUPPLIER',
+      title: shouldPublish ? 'Scrap Lot Published by Admin' : 'Scrap Lot Unpublished',
+      message: shouldPublish
+        ? `Your material listing "${listing.materialName}" has been approved and published to the international buyer & agent marketplace by Al Shaheed Admin.`
+        : `Your material listing "${listing.materialName}" has been set to unapproved/pending review by Al Shaheed Admin.`,
+      type: shouldPublish ? 'SUCCESS' : 'INFO',
+      linkUrl: '/supplier/listings',
+      priority: 'HIGH',
+    });
+
+    db.addAuditLog({
+      userId: (req as any).user.id,
+      userName: (req as any).user.name,
+      userRole: 'ADMIN',
+      action: shouldPublish ? 'LISTING_PUBLISHED' : 'LISTING_UNPUBLISHED',
+      entity: 'ScrapListing',
+      entityId: listing.id,
+      newValue: `Listing ${listing.materialName} isPublished: ${shouldPublish}`,
+      ipAddress: req.ip || '127.0.0.1',
+    });
+
+    res.json({ success: true, listing });
   });
 
   app.patch('/api/listings/:id/status', requireAuth, requireRole(['ADMIN']), async (req, res) => {
@@ -649,15 +704,15 @@ async function startServer() {
       return res.json(list.filter((r) => r.buyerId === user.id));
     }
 
-    if (user.role === 'SUPPLIER') {
-      // Supplier sees anonymized demand feed
+    if (user.role === 'SUPPLIER' || user.role === 'AGENT') {
+      // Counterparties only see requirements that Admin has approved and published
       const result = list
-        .filter((r) => r.status === 'ACTIVE')
+        .filter((r) => r.isPublished === true && r.status === 'ACTIVE')
         .map((r) => db.sanitizeRequirementForSupplier(r));
       return res.json(result);
     }
 
-    res.json(list.map((r) => db.sanitizeRequirementForSupplier(r)));
+    res.json(list.filter((r) => r.isPublished === true).map((r) => db.sanitizeRequirementForSupplier(r)));
   });
 
   app.post('/api/requirements', requireAuth, requireRole(['BUYER', 'ADMIN']), async (req, res) => {
@@ -667,6 +722,9 @@ async function startServer() {
     if (!data.materialName || !data.commodityCategory || !data.requiredQuantity) {
       return res.status(400).json({ error: 'Material name, category, and quantity are required.' });
     }
+
+    const isBuyer = user.role === 'BUYER';
+    const isPublished = !isBuyer; // Only Admin can publish directly; Buyer requirements require Admin approval
 
     const newReq: BuyerRequirement = {
       id: `req-${Date.now().toString().slice(-4)}`,
@@ -693,7 +751,9 @@ async function startServer() {
       paymentTerms: data.paymentTerms || '100% LC at Sight (Irrevocable & Confirmed)',
       incoterms: data.incoterms || 'CFR',
       additionalRequirements: data.additionalRequirements || '',
-      status: 'ACTIVE',
+      status: isPublished ? 'ACTIVE' : 'PENDING_REVIEW',
+      isPublished,
+      publishedAt: isPublished ? new Date().toISOString() : undefined,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -704,8 +764,8 @@ async function startServer() {
     db.addNotification({
       recipientId: 'ADMIN_ALL',
       recipientRole: 'ADMIN',
-      title: 'New Buyer Requirement Submitted',
-      message: `${user.companyName || user.name} posted demand for ${newReq.requiredQuantity} MT of ${newReq.materialName} for destination ${newReq.destinationPort}.`,
+      title: isBuyer ? 'New Buyer Requirement Awaiting Admin Approval' : 'New Buyer Requirement Submitted',
+      message: `${user.companyName || user.name} posted demand for ${newReq.requiredQuantity} MT of ${newReq.materialName} (Destination: ${newReq.destinationPort}). ${isBuyer ? 'Pending your review to publish to Supplier demand feed.' : 'Published to demand board.'}`,
       type: 'INFO',
       linkUrl: '/admin/matching',
       priority: 'HIGH',
@@ -718,11 +778,53 @@ async function startServer() {
       action: 'BUYER_REQUIREMENT_CREATED',
       entity: 'BuyerRequirement',
       entityId: newReq.id,
-      newValue: `${newReq.requiredQuantity} MT ${newReq.materialName} @ Target $${newReq.targetPricePerUnit}/MT`,
+      newValue: `${newReq.requiredQuantity} MT ${newReq.materialName} @ Target $${newReq.targetPricePerUnit}/MT (isPublished: ${isPublished})`,
       ipAddress: req.ip || '127.0.0.1',
     });
 
     res.status(201).json(newReq);
+  });
+
+  // Admin Publish / Unpublish Requirement
+  app.post('/api/requirements/:id/publish', requireAuth, requireRole(['ADMIN']), async (req, res) => {
+    const requirement = db.requirements.find((r) => r.id === req.params.id);
+    if (!requirement) return res.status(404).json({ error: 'Requirement not found.' });
+
+    const shouldPublish = req.body.isPublished !== undefined ? Boolean(req.body.isPublished) : !requirement.isPublished;
+    requirement.isPublished = shouldPublish;
+    requirement.status = shouldPublish ? 'ACTIVE' : 'PENDING_REVIEW';
+    if (shouldPublish) {
+      requirement.publishedAt = new Date().toISOString();
+    }
+    requirement.updatedAt = new Date().toISOString();
+
+    await db.saveRequirement(requirement);
+
+    // Notify buyer
+    db.addNotification({
+      recipientId: requirement.buyerId,
+      recipientRole: 'BUYER',
+      title: shouldPublish ? 'Demand Quota Published by Admin' : 'Demand Quota Unpublished',
+      message: shouldPublish
+        ? `Your buying requirement for "${requirement.materialName}" (${requirement.requiredQuantity} MT) has been approved and published to verified suppliers by Al Shaheed Admin.`
+        : `Your buying requirement for "${requirement.materialName}" is currently set to pending review by Admin.`,
+      type: shouldPublish ? 'SUCCESS' : 'INFO',
+      linkUrl: '/buyer/requirements',
+      priority: 'HIGH',
+    });
+
+    db.addAuditLog({
+      userId: (req as any).user.id,
+      userName: (req as any).user.name,
+      userRole: 'ADMIN',
+      action: shouldPublish ? 'REQUIREMENT_PUBLISHED' : 'REQUIREMENT_UNPUBLISHED',
+      entity: 'BuyerRequirement',
+      entityId: requirement.id,
+      newValue: `Requirement ${requirement.materialName} isPublished: ${shouldPublish}`,
+      ipAddress: req.ip || '127.0.0.1',
+    });
+
+    res.json({ success: true, requirement });
   });
 
   // Admin / Buyer Update Requirement
@@ -893,6 +995,41 @@ async function startServer() {
 
     await db.saveTransaction(newTxn);
 
+    // Update listing and requirement statuses to reflect admin match
+    listing.status = 'MATCHED';
+    listing.updatedAt = new Date().toISOString();
+    await db.saveListing(listing);
+
+    if (reqItem) {
+      reqItem.status = 'MATCHED';
+      reqItem.updatedAt = new Date().toISOString();
+      await db.saveRequirement(reqItem);
+    }
+
+    // Notify Supplier (anonymously through Al Shaheed)
+    db.addNotification({
+      recipientId: listing.supplierId,
+      recipientRole: 'SUPPLIER',
+      title: 'Counterparty Connected by Admin Desk',
+      message: `Al Shaheed Trade Desk has officially connected your scrap lot "${listing.materialName}" (${dealQty} MT) with an international buyer in Deal #${newTxn.dealCode}. Contract and LC documentation underway.`,
+      type: 'DEAL',
+      linkUrl: '/supplier/transactions',
+      priority: 'HIGH',
+    });
+
+    // Notify Buyer (anonymously through Al Shaheed)
+    if (reqItem) {
+      db.addNotification({
+        recipientId: reqItem.buyerId,
+        recipientRole: 'BUYER',
+        title: 'Requirement Connected by Admin Desk',
+        message: `Al Shaheed Trade Desk has connected your demand for "${reqItem.materialName}" (${dealQty} MT) with a verified supply lot in Deal #${newTxn.dealCode}. Proforma invoice prepared.`,
+        type: 'DEAL',
+        linkUrl: '/buyer/transactions',
+        priority: 'HIGH',
+      });
+    }
+
     // If agent assigned, create assignment record
     if (selectedAgent) {
       const newAsg: AgentAssignment = {
@@ -939,6 +1076,13 @@ async function startServer() {
     });
 
     res.status(201).json(newTxn);
+  });
+
+  // Alias for connecting parties directly by admin
+  app.post('/api/admin/connect-parties', requireAuth, requireRole(['ADMIN']), async (req, res, next) => {
+    // Forward to matches create-deal handler
+    req.url = '/api/matches/create-deal';
+    return (app as any)._router.handle(req, res, next);
   });
 
   // --- TRANSACTIONS LIFECYCLE ---

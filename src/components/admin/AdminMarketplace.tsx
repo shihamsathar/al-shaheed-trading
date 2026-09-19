@@ -21,15 +21,22 @@ import {
   Image as ImageIcon,
   Check,
   Tag,
+  Calendar,
+  Globe,
+  Lock,
+  Handshake,
+  TrendingUp,
 } from 'lucide-react';
 
 export const AdminMarketplace: React.FC = () => {
   const [listings, setListings] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
+  const [requirements, setRequirements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
+  const [approvalTab, setApprovalTab] = useState<'ALL' | 'PENDING' | 'PUBLISHED'>('ALL');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
   // Modals state
@@ -38,8 +45,22 @@ export const AdminMarketplace: React.FC = () => {
   const [isAssignAgentModalOpen, setIsAssignAgentModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isCreateListingModalOpen, setIsCreateListingModalOpen] = useState(false);
+  const [isConnectBuyerModalOpen, setIsConnectBuyerModalOpen] = useState(false);
 
   // Form states
+  const [connectForm, setConnectForm] = useState({
+    requirementId: '',
+    dealType: 'DIRECT_TRADING',
+    quantity: 0,
+    purchasePricePerUnit: 0,
+    sellingPricePerUnit: 0,
+    freightCost: 2500,
+    inspectionCost: 750,
+    agentId: '',
+    agentRatePerTon: 15,
+    incoterms: 'CFR',
+  });
+
   const [agentForm, setAgentForm] = useState({
     agentId: '',
     quantityMT: 0,
@@ -74,12 +95,14 @@ export const AdminMarketplace: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [list, agts] = await Promise.all([
+      const [list, agts, reqs] = await Promise.all([
         api.getListings({ category: selectedCategory, status: selectedStatus, search: searchTerm }),
         api.getAgents(),
+        api.getRequirements(),
       ]);
       setListings(list);
       setAgents(agts);
+      setRequirements(reqs);
     } catch (err) {
       console.error('Failed to load listings:', err);
     } finally {
@@ -90,6 +113,59 @@ export const AdminMarketplace: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [selectedCategory, selectedStatus, searchTerm]);
+
+  // Toggle Publication by Admin
+  const handleTogglePublish = async (listing: any) => {
+    try {
+      const nextPublished = !listing.isPublished;
+      await api.publishListing(listing.id, nextPublished);
+      await loadData();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  // Open Direct Connect Buyer Modal
+  const handleOpenConnectBuyer = (listing: any) => {
+    setSelectedListing(listing);
+    const matchReq =
+      requirements.find((r) => r.commodityCategory === listing.commodityCategory && r.status === 'ACTIVE') ||
+      requirements[0];
+
+    const targetPrice = matchReq ? matchReq.targetPricePerUnit : listing.pricePerUnit + 25;
+
+    setConnectForm({
+      requirementId: matchReq?.id || '',
+      dealType: 'DIRECT_TRADING',
+      quantity: listing.quantity,
+      purchasePricePerUnit: listing.pricePerUnit,
+      sellingPricePerUnit: targetPrice,
+      freightCost: 2500,
+      inspectionCost: 750,
+      agentId: agents[0]?.id || '',
+      agentRatePerTon: 15,
+      incoterms: listing.incoterms || 'CFR',
+    });
+    setIsConnectBuyerModalOpen(true);
+  };
+
+  const handleConnectBuyerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedListing) return;
+    try {
+      await api.createDealFromMatch({
+        listingId: selectedListing.id,
+        ...connectForm,
+      });
+      alert(
+        `Success! Admin has officially connected Supplier (${selectedListing.supplierCompanyName}) with Buyer in a verified trade deal.`
+      );
+      setIsConnectBuyerModalOpen(false);
+      await loadData();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
 
   // Open Agent Modal
   const handleOpenAssignAgent = (listing: any) => {
@@ -157,26 +233,102 @@ export const AdminMarketplace: React.FC = () => {
     }
   };
 
+  const pendingCount = listings.filter((l) => !l.isPublished || l.status === 'PENDING_REVIEW').length;
+  const publishedCount = listings.filter((l) => l.isPublished === true).length;
+
+  const displayedListings = listings.filter((l) => {
+    if (approvalTab === 'PENDING') {
+      return !l.isPublished || l.status === 'PENDING_REVIEW';
+    }
+    if (approvalTab === 'PUBLISHED') {
+      return l.isPublished === true;
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-6 pb-12">
       {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-800 text-xs font-bold mb-2">
+            <Lock className="w-3.5 h-3.5" />
+            Admin Curated &amp; Gatekept Trading Marketplace
+          </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             Scrap Materials Marketplace
           </h1>
           <p className="text-xs text-slate-500">
-            Manage global inventory, review supplier listings, assign sales agents, and update statuses.
+            Supplier uploads &amp; photos reflect here first. Only Admin can publish lots to Buyer &amp; Agent dashboards or directly connect counterparties.
           </p>
         </div>
 
         <button
           id="admin-create-listing-btn"
           onClick={() => setIsCreateListingModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-950/20 transition-all self-start sm:self-auto"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-950/20 transition-all self-start sm:self-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Add Scrap Material
+        </button>
+      </div>
+
+      {/* Admin Gatekeeper Notice Banner */}
+      {pendingCount > 0 && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                Gatekeeper Moderation: {pendingCount} Supplier Scrap Lot(s) Awaiting Admin Review
+              </h4>
+              <p className="text-xs text-amber-700 dark:text-amber-300/80 mt-0.5">
+                New photos and lots uploaded by suppliers remain private to Admin. Click "Approve &amp; Publish" to show them on public Buyer &amp; Agent dashboards, or use "Connect Buyer" to execute a direct institutional deal.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setApprovalTab('PENDING')}
+            className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shrink-0 self-start sm:self-auto cursor-pointer transition-colors"
+          >
+            Review Pending ({pendingCount})
+          </button>
+        </div>
+      )}
+
+      {/* Approval Status Tab Navigation */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+        <button
+          onClick={() => setApprovalTab('ALL')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            approvalTab === 'ALL'
+              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+          }`}
+        >
+          All Lots ({listings.length})
+        </button>
+        <button
+          onClick={() => setApprovalTab('PENDING')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+            approvalTab === 'PENDING'
+              ? 'bg-amber-600 text-white shadow-sm'
+              : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100'
+          }`}
+        >
+          <Lock className="w-3.5 h-3.5" />
+          Pending Admin Approval ({pendingCount})
+        </button>
+        <button
+          onClick={() => setApprovalTab('PUBLISHED')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+            approvalTab === 'PUBLISHED'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100'
+          }`}
+        >
+          <Globe className="w-3.5 h-3.5" />
+          Published on Marketplace ({publishedCount})
         </button>
       </div>
 
@@ -220,9 +372,10 @@ export const AdminMarketplace: React.FC = () => {
           >
             <option value="">All Statuses</option>
             <option value="AVAILABLE">AVAILABLE (Green)</option>
+            <option value="PENDING_REVIEW">PENDING_REVIEW (Yellow)</option>
+            <option value="MATCHED">MATCHED</option>
             <option value="SOLD">SOLD (Red)</option>
             <option value="RESERVED">RESERVED (Blue)</option>
-            <option value="PENDING">PENDING</option>
           </select>
         </div>
 
@@ -230,7 +383,7 @@ export const AdminMarketplace: React.FC = () => {
         <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
           <button
             onClick={() => setViewMode('grid')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
               viewMode === 'grid'
                 ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                 : 'text-slate-500 hover:text-slate-800'
@@ -240,7 +393,7 @@ export const AdminMarketplace: React.FC = () => {
           </button>
           <button
             onClick={() => setViewMode('table')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
               viewMode === 'table'
                 ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                 : 'text-slate-500 hover:text-slate-800'
@@ -251,10 +404,19 @@ export const AdminMarketplace: React.FC = () => {
         </div>
       </div>
 
-      {/* Grid Mode */}
-      {viewMode === 'grid' ? (
+      {displayedListings.length === 0 ? (
+        <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-400">
+          <Boxes className="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-700" />
+          <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">No Scrap Materials Found</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            {approvalTab === 'PENDING'
+              ? 'No lots currently pending review. All supplier uploads have been processed.'
+              : 'Try changing search terms or filter criteria.'}
+          </p>
+        </div>
+      ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {listings.map((item) => (
+          {displayedListings.map((item) => (
             <div
               key={item.id}
               className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col justify-between hover:shadow-md hover:border-emerald-500/40 transition-all group"
@@ -275,8 +437,17 @@ export const AdminMarketplace: React.FC = () => {
                       <span className="text-[11px] font-medium text-slate-500">No Photo Available</span>
                     </div>
                   )}
-                  <div className="absolute top-3 left-3">
+                  <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
                     <Badge status={item.status} size="sm" />
+                    {item.isPublished ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-600/90 text-white backdrop-blur-xs shadow-xs">
+                        <Globe className="w-2.5 h-2.5" /> Published
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-500/90 text-white backdrop-blur-xs shadow-xs">
+                        <Lock className="w-2.5 h-2.5" /> Admin Only
+                      </span>
+                    )}
                   </div>
                   <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-slate-950/80 backdrop-blur-xs text-white text-xs font-black">
                     ${item.pricePerUnit}/{item.quantityUnit}
@@ -318,8 +489,29 @@ export const AdminMarketplace: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Exact Dates Display (Admin Only Privilege) */}
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 text-[11px] space-y-1">
+                    <div className="flex items-center justify-between text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-slate-400" />
+                        Posted by Supplier:
+                      </span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300 font-mono">
+                        {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'} {item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </span>
+                    </div>
+                    {item.availabilityDate && (
+                      <div className="flex items-center justify-between text-slate-500">
+                        <span>Availability Window:</span>
+                        <span className="font-medium text-slate-700 dark:text-slate-300">
+                          {item.availabilityDate} {item.validUntil ? `to ${item.validUntil}` : ''}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Confidential Supplier Info (Admin Privilege) */}
-                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 text-[11px]">
+                  <div className="p-2.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800 text-[11px]">
                     <div className="text-[10px] font-bold text-purple-700 dark:text-purple-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                       <Building2 className="w-3 h-3" />
                       Confidential Supplier (Admin Only):
@@ -333,34 +525,69 @@ export const AdminMarketplace: React.FC = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="p-4 pt-0 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 mt-3 pt-3">
-                <button
-                  onClick={() => {
-                    setSelectedListing(item);
-                    setIsDetailModalOpen(true);
-                  }}
-                  className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1"
-                  title="View full specs"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  Specs
-                </button>
-
-                <div className="flex items-center gap-1.5">
+              <div className="p-4 pt-0 border-t border-slate-100 dark:border-slate-800 space-y-2 mt-3 pt-3">
+                {/* 1-Click Publishing & Connecting Controls */}
+                <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => handleOpenAssignAgent(item)}
-                    className="px-2.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 text-xs font-bold flex items-center gap-1"
+                    onClick={() => handleTogglePublish(item)}
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      item.isPublished
+                        ? 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                    }`}
                   >
-                    <Users className="w-3.5 h-3.5" />
-                    Agent ($/MT)
+                    {item.isPublished ? (
+                      <>
+                        <Lock className="w-3.5 h-3.5" />
+                        Unpublish
+                      </>
+                    ) : (
+                      <>
+                        <Globe className="w-3.5 h-3.5" />
+                        Approve &amp; Publish
+                      </>
+                    )}
                   </button>
 
                   <button
-                    onClick={() => handleOpenStatusModal(item)}
-                    className="px-2.5 py-1.5 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold hover:bg-slate-800 transition-colors"
+                    onClick={() => handleOpenConnectBuyer(item)}
+                    className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
                   >
-                    Status
+                    <Handshake className="w-3.5 h-3.5" />
+                    Connect Buyer
                   </button>
+                </div>
+
+                {/* Secondary Specs / Agent / Status buttons */}
+                <div className="flex items-center justify-between gap-1.5 pt-1">
+                  <button
+                    onClick={() => {
+                      setSelectedListing(item);
+                      setIsDetailModalOpen(true);
+                    }}
+                    className="p-1.5 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                    title="View full specs"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    Specs
+                  </button>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleOpenAssignAgent(item)}
+                      className="px-2 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Users className="w-3 h-3" />
+                      Agent
+                    </button>
+
+                    <button
+                      onClick={() => handleOpenStatusModal(item)}
+                      className="px-2.5 py-1 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+                    >
+                      Status
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -378,12 +605,14 @@ export const AdminMarketplace: React.FC = () => {
                 <th className="px-4 py-3">Price / MT</th>
                 <th className="px-4 py-3">Origin / Port</th>
                 <th className="px-4 py-3">Supplier (Confidential)</th>
+                <th className="px-4 py-3">Posted Date</th>
+                <th className="px-4 py-3">Publish State</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {listings.map((item) => (
+              {displayedListings.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
                   <td className="px-4 py-3.5 font-bold text-slate-900 dark:text-white">
                     {item.materialName}
@@ -408,19 +637,49 @@ export const AdminMarketplace: React.FC = () => {
                       {item.supplierCompanyName}
                     </div>
                   </td>
+                  <td className="px-4 py-3.5 text-slate-500 font-mono text-[11px]">
+                    {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    {item.isPublished ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        <Globe className="w-2.5 h-2.5" /> Published
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                        <Lock className="w-2.5 h-2.5" /> Pending Review
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3.5">
                     <Badge status={item.status} size="sm" />
                   </td>
-                  <td className="px-4 py-3.5 text-right space-x-2">
+                  <td className="px-4 py-3.5 text-right space-x-1.5">
+                    <button
+                      onClick={() => handleTogglePublish(item)}
+                      className={`px-2 py-1 rounded-lg font-bold text-[11px] cursor-pointer ${
+                        item.isPublished
+                          ? 'border border-slate-300 text-slate-600 hover:bg-slate-100'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                      }`}
+                    >
+                      {item.isPublished ? 'Unpublish' : 'Publish'}
+                    </button>
+                    <button
+                      onClick={() => handleOpenConnectBuyer(item)}
+                      className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-[11px] cursor-pointer"
+                    >
+                      Connect
+                    </button>
                     <button
                       onClick={() => handleOpenAssignAgent(item)}
-                      className="px-2 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg font-bold text-[11px]"
+                      className="px-2 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg font-bold text-[11px] cursor-pointer"
                     >
-                      Assign Agent
+                      Agent
                     </button>
                     <button
                       onClick={() => handleOpenStatusModal(item)}
-                      className="px-2 py-1 bg-slate-800 text-white rounded-lg font-bold text-[11px]"
+                      className="px-2 py-1 bg-slate-800 text-white rounded-lg font-bold text-[11px] cursor-pointer"
                     >
                       Status
                     </button>
@@ -854,18 +1113,257 @@ export const AdminMarketplace: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsCreateListingModalOpen(false)}
-              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 font-semibold"
+              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 font-semibold cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
             >
               Publish Listing
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal: Connect Parties & Form Official Trade Deal */}
+      <Modal
+        isOpen={isConnectBuyerModalOpen}
+        onClose={() => setIsConnectBuyerModalOpen(false)}
+        title="Admin Counterparty Connection Desk"
+        subtitle={`Match Supplier (${selectedListing?.supplierCompanyName || 'Supplier'}) with a qualified Buyer requirement to execute a transaction`}
+        maxWidth="3xl"
+      >
+        {selectedListing && (
+          <form onSubmit={handleConnectBuyerSubmit} className="space-y-4 text-xs">
+            {/* Material & Supplier Context Card */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  {selectedListing.commodityCategory} &bull; {selectedListing.grade}
+                </span>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {selectedListing.materialName}
+                </h4>
+                <div className="text-slate-500 text-[11px] mt-0.5">
+                  Available: <strong>{selectedListing.quantity} {selectedListing.quantityUnit}</strong> &bull; Base Price: <strong>${selectedListing.pricePerUnit}/MT</strong> &bull; Origin: {selectedListing.portOfShipping}
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-[11px]">
+                <div className="text-[10px] font-bold text-purple-700 dark:text-purple-400 uppercase">
+                  Supplier Counterparty
+                </div>
+                <div className="font-bold text-slate-800 dark:text-slate-200">
+                  {selectedListing.supplierCompanyName}
+                </div>
+                <div className="text-slate-500 text-[10px]">{selectedListing.supplierEmail}</div>
+              </div>
+            </div>
+
+            {/* Target Buyer Requirement Selection */}
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Select Matching Buyer Requirement *
+              </label>
+              <select
+                required
+                value={connectForm.requirementId}
+                onChange={(e) => {
+                  const req = requirements.find((r) => r.id === e.target.value);
+                  setConnectForm({
+                    ...connectForm,
+                    requirementId: e.target.value,
+                    sellingPricePerUnit: req ? req.targetPricePerUnit : connectForm.sellingPricePerUnit,
+                  });
+                }}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-medium"
+              >
+                <option value="">-- Choose Buyer Demand --</option>
+                {requirements.map((req) => (
+                  <option key={req.id} value={req.id}>
+                    {req.buyerCompanyName} &bull; {req.materialGrade} &bull; Needed: {req.targetQuantity} {req.targetQuantityUnit} &bull; Target: ${req.targetPricePerUnit}/MT ({req.destinationPort})
+                  </option>
+                ))}
+              </select>
+              {requirements.length === 0 && (
+                <p className="text-[11px] text-amber-600 mt-1">
+                  No active buyer requirements found. You can still initiate the direct deal once a buyer requirement is registered.
+                </p>
+              )}
+            </div>
+
+            {/* Commercial Pricing Parameters */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Deal Quantity (MT) *
+                </label>
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max={selectedListing.quantity}
+                  value={connectForm.quantity}
+                  onChange={(e) => setConnectForm({ ...connectForm, quantity: Number(e.target.value) })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Supplier Purchase ($/MT) *
+                </label>
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  value={connectForm.purchasePricePerUnit}
+                  onChange={(e) => setConnectForm({ ...connectForm, purchasePricePerUnit: Number(e.target.value) })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold text-emerald-600 dark:text-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Buyer Selling Price ($/MT) *
+                </label>
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  value={connectForm.sellingPricePerUnit}
+                  onChange={(e) => setConnectForm({ ...connectForm, sellingPricePerUnit: Number(e.target.value) })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold text-blue-600 dark:text-blue-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Incoterms
+                </label>
+                <select
+                  value={connectForm.incoterms}
+                  onChange={(e) => setConnectForm({ ...connectForm, incoterms: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
+                >
+                  <option value="CFR">CFR - Cost &amp; Freight</option>
+                  <option value="CIF">CIF - Cost, Insurance &amp; Freight</option>
+                  <option value="FOB">FOB - Free on Board</option>
+                  <option value="DAP">DAP - Delivered at Place</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Logistics & Agent Allocation */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Est. Ocean Freight ($)
+                </label>
+                <input
+                  type="number"
+                  value={connectForm.freightCost}
+                  onChange={(e) => setConnectForm({ ...connectForm, freightCost: Number(e.target.value) })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Assign Local Agent (Optional)
+                </label>
+                <select
+                  value={connectForm.agentId}
+                  onChange={(e) => setConnectForm({ ...connectForm, agentId: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
+                >
+                  <option value="">-- No Agent Assigned --</option>
+                  {agents.map((ag) => (
+                    <option key={ag.id} value={ag.id}>
+                      {ag.fullName} ({ag.assignedRegion || 'Global'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Agent Rate ($/MT)
+                </label>
+                <input
+                  type="number"
+                  value={connectForm.agentRatePerTon}
+                  onChange={(e) => setConnectForm({ ...connectForm, agentRatePerTon: Number(e.target.value) })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
+                />
+              </div>
+            </div>
+
+            {/* Commercial Spread & Margin Calculator */}
+            {(() => {
+              const qty = Number(connectForm.quantity) || 0;
+              const buyPrice = Number(connectForm.purchasePricePerUnit) || 0;
+              const sellPrice = Number(connectForm.sellingPricePerUnit) || 0;
+              const freight = Number(connectForm.freightCost) || 0;
+              const inspection = Number(connectForm.inspectionCost) || 0;
+              const agentFee = connectForm.agentId ? qty * (Number(connectForm.agentRatePerTon) || 0) : 0;
+
+              const totalRevenue = qty * sellPrice;
+              const totalCost = qty * buyPrice + freight + inspection + agentFee;
+              const grossProfit = totalRevenue - totalCost;
+              const marginPct = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : '0';
+
+              return (
+                <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300 mb-2">
+                    <TrendingUp className="w-4 h-4" />
+                    Deal Profitability &amp; Spread Analysis
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-slate-500 block">Gross Revenue:</span>
+                      <strong className="text-slate-800 dark:text-slate-200 text-xs">${totalRevenue.toLocaleString()}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Total Landed Cost:</span>
+                      <strong className="text-slate-800 dark:text-slate-200 text-xs">${totalCost.toLocaleString()}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Admin Gross Profit:</span>
+                      <strong className={`text-xs ${grossProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                        ${grossProfit.toLocaleString()}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Net Trading Margin:</span>
+                      <strong className="text-xs text-emerald-700 dark:text-emerald-300">{marginPct}%</strong>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Action Buttons */}
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsConnectBuyerModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center gap-1.5 shadow-md shadow-blue-900/20 cursor-pointer"
+              >
+                <Handshake className="w-4 h-4" />
+                Connect Parties &amp; Form Deal
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

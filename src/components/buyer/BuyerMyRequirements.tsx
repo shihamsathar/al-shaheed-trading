@@ -62,7 +62,7 @@ export const BuyerMyRequirements: React.FC = () => {
       await api.createRequirement(form);
       setIsCreateModalOpen(false);
       await loadReqs();
-      alert('Requirement posted! Al Shaheed matching desk is scanning inventory for matching scrap lots.');
+      alert('Buying requirement submitted! Transmitted directly to the Al Shaheed Admin desk. Admin will connect matching suppliers or publish to certified counterparties.');
     } catch (err: any) {
       alert(err.message);
     }
@@ -76,13 +76,13 @@ export const BuyerMyRequirements: React.FC = () => {
             My Buying Demands &amp; Scrap Quotas
           </h1>
           <p className="text-xs text-slate-500">
-            Publish your purchasing quotas. Al Shaheed matching algorithm pairs your specifications directly with available scrap.
+            Submit your purchasing quotas. Admin reviews requirements and connects qualified suppliers directly or publishes to certified counterparties.
           </p>
         </div>
 
         <button
           onClick={() => setIsCreateModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all self-start sm:self-auto"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all self-start sm:self-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Post New Buying Demand

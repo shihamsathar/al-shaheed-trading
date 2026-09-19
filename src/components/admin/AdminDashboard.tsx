@@ -74,6 +74,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const totalSales = summary?.totalSalesValue || 0;
   const totalSuppliers = summary?.totalSuppliers || 0;
   const totalBuyers = summary?.totalBuyers || 0;
+  const pendingCount = listings.filter((l) => !l.isPublished || l.status === 'PENDING_REVIEW').length;
 
   // Visual Category Highlights dynamically derived
   const categories = [
@@ -174,6 +175,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
           </div>
         </div>
       </div>
+
+      {/* Admin Gatekeeper Notice Banner */}
+      {pendingCount > 0 && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+              <ShieldAlert className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                Gatekeeper Moderation: {pendingCount} Supplier Material Upload(s) Require Admin Approval
+              </h4>
+              <p className="text-xs text-slate-300 mt-0.5">
+                New photos &amp; specifications uploaded by suppliers remain private to Admin. Publish them to the marketplace or connect buyer counterparties directly.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate('admin-marketplace')}
+            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors shadow-sm"
+          >
+            Review &amp; Publish Lots ({pendingCount})
+          </button>
+        </div>
+      )}
 
       {/* Visual Commodity Categories Strip with Realistic Photography */}
       <div>
