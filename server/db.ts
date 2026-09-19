@@ -421,7 +421,7 @@ class TradingDatabase {
       quantity: listing.quantity,
       quantityUnit: listing.quantityUnit,
       numberOfContainers: listing.numberOfContainers,
-      pricePerUnit: listing.adminPublishedPrice ? listing.pricePerUnit : 0,
+      pricePerUnit: listing.pricePerUnit,
       currency: listing.currency,
       countryOfOrigin: listing.countryOfOrigin,
       portOfShipping: listing.portOfShipping,

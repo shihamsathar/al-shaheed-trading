@@ -137,11 +137,41 @@ export const api = {
     return handleResponse<any>(res);
   },
 
-  async publishListing(id: string, isPublished: boolean) {
+  async publishListing(
+    id: string,
+    isPublished: boolean,
+    options?: {
+      adminProfitPerUnit?: number;
+      targetBuyerId?: string;
+      targetBuyerName?: string;
+      buyerName?: string;
+      publishedPricePerUnit?: number;
+      adminNotes?: string;
+    }
+  ) {
     const res = await fetch(`${API_BASE}/listings/${id}/publish`, {
       method: 'POST',
       headers: getAuthHeader(),
-      body: JSON.stringify({ isPublished }),
+      body: JSON.stringify({ isPublished, ...options }),
+    });
+    return handleResponse<{ success: boolean; listing: any }>(res);
+  },
+
+  async updateListingCommercial(
+    id: string,
+    payload: {
+      adminProfitPerUnit?: number;
+      targetBuyerId?: string;
+      targetBuyerName?: string;
+      buyerName?: string;
+      publishedPricePerUnit?: number;
+      adminNotes?: string;
+    }
+  ) {
+    const res = await fetch(`${API_BASE}/listings/${id}/commercial`, {
+      method: 'PATCH',
+      headers: getAuthHeader(),
+      body: JSON.stringify(payload),
     });
     return handleResponse<{ success: boolean; listing: any }>(res);
   },

@@ -342,7 +342,12 @@ async function startServer() {
       const result = list
         .filter((l) => l.supplierId === user.id || (l.isPublished === true && l.status === 'AVAILABLE'))
         .map((l) => {
-          if (l.supplierId === user.id) return l;
+          if (l.supplierId === user.id) {
+            return {
+              ...l,
+              pricePerUnit: l.supplierPricePerUnit || l.pricePerUnit,
+            };
+          }
           return db.sanitizeListingForBuyer(l);
         });
       return res.json(result);
@@ -377,8 +382,15 @@ async function startServer() {
     const listing = db.listings.find((l) => l.id === req.params.id);
     if (!listing) return res.status(404).json({ error: 'Listing not found.' });
 
-    if (user.role === 'ADMIN' || (user.role === 'SUPPLIER' && listing.supplierId === user.id)) {
+    if (user.role === 'ADMIN') {
       return res.json(listing);
+    }
+
+    if (user.role === 'SUPPLIER' && listing.supplierId === user.id) {
+      return res.json({
+        ...listing,
+        pricePerUnit: listing.supplierPricePerUnit || listing.pricePerUnit,
+      });
     }
 
     // If unapproved/pending review, non-admins cannot access it
@@ -491,6 +503,35 @@ async function startServer() {
     listing.status = shouldPublish ? 'AVAILABLE' : 'PENDING_REVIEW';
     if (shouldPublish) {
       listing.publishedAt = new Date().toISOString();
+
+      // Ensure supplier base asking price is securely retained
+      if (listing.supplierPricePerUnit === undefined || listing.supplierPricePerUnit === 0) {
+        listing.supplierPricePerUnit = listing.pricePerUnit;
+      }
+
+      // Add Admin Profit if provided
+      if (req.body.adminProfitPerUnit !== undefined) {
+        const profit = Number(req.body.adminProfitPerUnit) || 0;
+        listing.adminProfitPerUnit = profit;
+        if (req.body.publishedPricePerUnit !== undefined && Number(req.body.publishedPricePerUnit) > 0) {
+          listing.pricePerUnit = Number(req.body.publishedPricePerUnit);
+        } else {
+          listing.pricePerUnit = (listing.supplierPricePerUnit || listing.pricePerUnit) + profit;
+        }
+      }
+
+      // Assign / Tag Buyer Name
+      const targetBuyer = req.body.targetBuyerName || req.body.buyerName;
+      if (targetBuyer !== undefined && targetBuyer !== null) {
+        listing.targetBuyerName = String(targetBuyer).trim();
+        listing.buyerName = String(targetBuyer).trim();
+      }
+      if (req.body.targetBuyerId !== undefined) {
+        listing.targetBuyerId = req.body.targetBuyerId;
+      }
+      if (req.body.adminNotes !== undefined) {
+        listing.adminNotes = req.body.adminNotes;
+      }
     }
     listing.updatedAt = new Date().toISOString();
 
@@ -516,7 +557,55 @@ async function startServer() {
       action: shouldPublish ? 'LISTING_PUBLISHED' : 'LISTING_UNPUBLISHED',
       entity: 'ScrapListing',
       entityId: listing.id,
-      newValue: `Listing ${listing.materialName} isPublished: ${shouldPublish}`,
+      newValue: `Listing ${listing.materialName} isPublished: ${shouldPublish}, Profit: +$${listing.adminProfitPerUnit || 0}/MT, Buyer: ${listing.targetBuyerName || listing.buyerName || 'General'}`,
+      ipAddress: req.ip || '127.0.0.1',
+    });
+
+    res.json({ success: true, listing });
+  });
+
+  // Admin Update Commercial Terms (Profit & Designated Buyer)
+  app.patch('/api/listings/:id/commercial', requireAuth, requireRole(['ADMIN']), async (req, res) => {
+    const listing = db.listings.find((l) => l.id === req.params.id);
+    if (!listing) return res.status(404).json({ error: 'Listing not found.' });
+
+    if (listing.supplierPricePerUnit === undefined || listing.supplierPricePerUnit === 0) {
+      listing.supplierPricePerUnit = listing.pricePerUnit;
+    }
+
+    if (req.body.adminProfitPerUnit !== undefined) {
+      const profit = Number(req.body.adminProfitPerUnit) || 0;
+      listing.adminProfitPerUnit = profit;
+      if (req.body.publishedPricePerUnit !== undefined && Number(req.body.publishedPricePerUnit) > 0) {
+        listing.pricePerUnit = Number(req.body.publishedPricePerUnit);
+      } else {
+        listing.pricePerUnit = (listing.supplierPricePerUnit || listing.pricePerUnit) + profit;
+      }
+    }
+
+    const targetBuyer = req.body.targetBuyerName || req.body.buyerName;
+    if (targetBuyer !== undefined && targetBuyer !== null) {
+      listing.targetBuyerName = String(targetBuyer).trim();
+      listing.buyerName = String(targetBuyer).trim();
+    }
+    if (req.body.targetBuyerId !== undefined) {
+      listing.targetBuyerId = req.body.targetBuyerId;
+    }
+    if (req.body.adminNotes !== undefined) {
+      listing.adminNotes = req.body.adminNotes;
+    }
+    listing.updatedAt = new Date().toISOString();
+
+    await db.saveListing(listing);
+
+    db.addAuditLog({
+      userId: (req as any).user.id,
+      userName: (req as any).user.name,
+      userRole: 'ADMIN',
+      action: 'LISTING_COMMERCIAL_UPDATED',
+      entity: 'ScrapListing',
+      entityId: listing.id,
+      newValue: `Commercial Updated: Profit +$${listing.adminProfitPerUnit || 0}/MT, Buyer: ${listing.targetBuyerName || listing.buyerName || 'Open Market'}`,
       ipAddress: req.ip || '127.0.0.1',
     });
 

@@ -109,6 +109,11 @@ export interface ScrapListing {
   isPublished?: boolean;
   publishedAt?: string;
   adminPublishedPrice?: boolean;
+  supplierPricePerUnit?: number; // Base cost / supplier asking price
+  adminProfitPerUnit?: number;   // Admin margin added by admin desk ($/MT)
+  targetBuyerId?: string;        // Assigned/Targeted buyer id
+  targetBuyerName?: string;      // Assigned/Targeted buyer name
+  buyerName?: string;            // Primary buyer name to display
   assignedAgentId?: string;
   assignedAgentName?: string;
   agentRatePerTon?: number;  // $ per MT

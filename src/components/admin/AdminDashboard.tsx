@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { Badge } from '../common/Badge';
 import { ScrapListing } from '../../types';
+import { AdminPublishModal } from './AdminPublishModal';
 import {
   Boxes,
   Users,
@@ -21,6 +22,9 @@ import {
   Ship,
   Award,
   Globe2,
+  Globe,
+  Lock,
+  Tag,
   Filter,
 } from 'lucide-react';
 
@@ -34,6 +38,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const [transactions, setTransactions] = useState<any[]>([]);
   const [listings, setListings] = useState<ScrapListing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [moderationTab, setModerationTab] = useState<'ALL' | 'PUBLISHED' | 'PENDING'>('ALL');
+  const [publishModalListing, setPublishModalListing] = useState<ScrapListing | null>(null);
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+
+  const handleOpenPublish = (item: ScrapListing) => {
+    setPublishModalListing(item);
+    setIsPublishModalOpen(true);
+  };
+
+  const handlePublishSuccess = (updated: ScrapListing) => {
+    setListings((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+  };
+
+  const handleUnpublish = async (item: ScrapListing) => {
+    try {
+      const res = await api.publishListing(item.id, false);
+      if (res && res.listing) {
+        setListings((prev) => prev.map((l) => (l.id === res.listing.id ? res.listing : l)));
+      } else {
+        setListings((prev) => prev.map((l) => (l.id === item.id ? { ...l, isPublished: false, status: 'PENDING_REVIEW' } : l)));
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to unpublish lot.');
+    }
+  };
 
   useEffect(() => {
     async function loadDashboardData() {
@@ -188,12 +217,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                 Gatekeeper Moderation: {pendingCount} Supplier Material Upload(s) Require Admin Approval
               </h4>
               <p className="text-xs text-slate-300 mt-0.5">
-                New photos &amp; specifications uploaded by suppliers remain private to Admin. Publish them to the marketplace or connect buyer counterparties directly.
+                New photos &amp; specifications uploaded by suppliers remain private to Admin. Add your profit margin and designate buyer counterparties to publish.
               </p>
             </div>
           </div>
           <button
-            onClick={() => onNavigate('admin-marketplace')}
+            onClick={() => {
+              setModerationTab('PENDING');
+              const el = document.getElementById('moderation-desk');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
             className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors shadow-sm"
           >
             Review &amp; Publish Lots ({pendingCount})
@@ -356,6 +389,238 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
           <div className="text-[10px] text-slate-300 bg-slate-800 self-start px-2.5 py-1 rounded-md font-bold uppercase tracking-tight">
             GLOBAL ACCREDITED
           </div>
+        </div>
+
+        {/* Bento Tile: Gatekeeper Scrap Moderation & Trade Allocation Desk */}
+        <div id="moderation-desk" className="col-span-12 bg-slate-900/90 backdrop-blur-md p-6 sm:p-7 rounded-3xl border border-slate-800 shadow-xl space-y-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <h3 className="text-sm sm:text-base font-bold uppercase tracking-wider text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  Scrap Moderation &amp; Trade Allocation Desk
+                </h3>
+              </div>
+              <p className="text-xs text-slate-400 max-w-2xl">
+                Add your broker profit margin ($/MT) and designate buyer counterparties before publishing supplier lots to the live marketplace.
+              </p>
+            </div>
+
+            {/* Moderation Filter Tabs */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-950/80 rounded-xl border border-slate-800 self-start md:self-auto">
+              <button
+                onClick={() => setModerationTab('ALL')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  moderationTab === 'ALL'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                All Materials ({listings.length})
+              </button>
+              <button
+                onClick={() => setModerationTab('PUBLISHED')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  moderationTab === 'PUBLISHED'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                Published ({listings.filter((l) => l.isPublished).length})
+              </button>
+              <button
+                onClick={() => setModerationTab('PENDING')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  moderationTab === 'PENDING'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-amber-400 hover:text-white'
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5" />
+                Pending Review ({pendingCount})
+              </button>
+            </div>
+          </div>
+
+          {listings.filter((item) => {
+            if (moderationTab === 'PUBLISHED') return item.isPublished;
+            if (moderationTab === 'PENDING') return !item.isPublished;
+            return true;
+          }).length === 0 ? (
+            <div className="text-center py-12 text-slate-500 text-xs">
+              No scrap lots found for this filter.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                    <th className="pb-3 font-semibold">Material Lot</th>
+                    <th className="pb-3 font-semibold">Supplier Asking Cost</th>
+                    <th className="pb-3 font-semibold">Admin Profit / Spread</th>
+                    <th className="pb-3 font-semibold">Buyer Invoiced Price</th>
+                    <th className="pb-3 font-semibold">Designated Buyer Name</th>
+                    <th className="pb-3 font-semibold">Gatekeeper State</th>
+                    <th className="pb-3 font-semibold text-right">Moderation Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {listings
+                    .filter((item) => {
+                      if (moderationTab === 'PUBLISHED') return item.isPublished;
+                      if (moderationTab === 'PENDING') return !item.isPublished;
+                      return true;
+                    })
+                    .map((item) => {
+                      const supplierCost = item.supplierPricePerUnit || item.pricePerUnit;
+                      const profitPerMT =
+                        item.adminProfitPerUnit !== undefined
+                          ? item.adminProfitPerUnit
+                          : item.isPublished
+                          ? Math.max(0, item.pricePerUnit - supplierCost)
+                          : 0;
+                      const totalProfit = profitPerMT * item.quantity;
+                      const buyerPrice = item.isPublished ? item.pricePerUnit : supplierCost + profitPerMT;
+                      const buyerDisplayName = item.targetBuyerName || item.buyerName;
+
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
+                          <td className="py-3.5">
+                            <div className="flex items-center gap-3">
+                              {item.photos && item.photos.length > 0 ? (
+                                <img
+                                  src={item.photos[0]}
+                                  alt={item.materialName}
+                                  referrerPolicy="no-referrer"
+                                  className="w-10 h-10 rounded-xl object-cover border border-slate-700 shrink-0 bg-slate-800"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-sm font-bold text-slate-400 shrink-0">
+                                  📦
+                                </div>
+                              )}
+                              <div>
+                                <p className="font-bold text-white text-sm">
+                                  {item.materialName}
+                                </p>
+                                <p className="text-slate-400 text-[11px] font-mono">
+                                  {item.quantity.toLocaleString()} {item.quantityUnit} &bull; {item.grade}
+                                </p>
+                                <p className="text-purple-400 text-[10px] font-medium">
+                                  Supplier: {item.supplierCompanyName || 'Registered Yard'}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Supplier Cost */}
+                          <td className="py-3.5">
+                            <div className="font-mono text-slate-300 font-bold">
+                              ${supplierCost.toLocaleString()}
+                            </div>
+                            <span className="text-[10px] text-slate-500 uppercase">
+                              Supplier Cost/{item.quantityUnit}
+                            </span>
+                          </td>
+
+                          {/* Admin Profit */}
+                          <td className="py-3.5">
+                            {profitPerMT > 0 ? (
+                              <div>
+                                <span className="inline-flex items-center gap-1 font-mono font-black text-emerald-400 text-sm">
+                                  +${profitPerMT}/MT
+                                </span>
+                                <div className="text-[10px] text-emerald-300/80 font-mono font-semibold">
+                                  (+${totalProfit.toLocaleString()} USD Total)
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-500 font-mono text-xs">
+                                +$0 (Pending margin)
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Buyer Price */}
+                          <td className="py-3.5">
+                            <div className="font-mono font-black text-white text-sm">
+                              ${buyerPrice.toLocaleString()}
+                            </div>
+                            <span className="text-[10px] text-slate-400">
+                              USD / {item.quantityUnit}
+                            </span>
+                          </td>
+
+                          {/* Designated Buyer Name */}
+                          <td className="py-3.5">
+                            {item.isPublished && buyerDisplayName ? (
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 font-bold text-xs">
+                                <Building2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                <span className="truncate max-w-[200px]">{buyerDisplayName}</span>
+                              </div>
+                            ) : item.isPublished ? (
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 font-medium text-xs">
+                                <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span>Open Marketplace (All Buyers)</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-500 text-xs italic">
+                                Awaiting Publication
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Publication Status */}
+                          <td className="py-3.5">
+                            {item.isPublished ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                                <Globe className="w-3 h-3 text-emerald-400" />
+                                Published
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                                <Lock className="w-3 h-3 text-amber-400" />
+                                Pending Approval
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3.5 text-right space-x-2 whitespace-nowrap">
+                            {item.isPublished ? (
+                              <>
+                                <button
+                                  onClick={() => handleOpenPublish(item)}
+                                  className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-xs font-bold transition-colors cursor-pointer"
+                                >
+                                  Edit Profit &amp; Buyer
+                                </button>
+                                <button
+                                  onClick={() => handleUnpublish(item)}
+                                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-bold transition-colors cursor-pointer"
+                                >
+                                  Unpublish
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => handleOpenPublish(item)}
+                                className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-950/50 flex items-center gap-1.5 ml-auto cursor-pointer"
+                              >
+                                <DollarSign className="w-3.5 h-3.5" />
+                                Publish with Profit
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Bento Tile 5: Matching Engine Workspace */}
@@ -570,6 +835,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
           </div>
         </div>
       </div>
+
+      {/* Admin Publish & Profit Margin Allocation Modal */}
+      <AdminPublishModal
+        isOpen={isPublishModalOpen}
+        listing={publishModalListing}
+        onClose={() => {
+          setIsPublishModalOpen(false);
+          setPublishModalListing(null);
+        }}
+        onSuccess={handlePublishSuccess}
+      />
     </div>
   );
 };
