@@ -504,20 +504,48 @@ async function startServer() {
     if (shouldPublish) {
       listing.publishedAt = new Date().toISOString();
 
-      // Ensure supplier base asking price is securely retained
-      if (listing.supplierPricePerUnit === undefined || listing.supplierPricePerUnit === 0) {
-        listing.supplierPricePerUnit = listing.pricePerUnit;
+      // 1. Material Cost (Supplier Asking/Purchase Cost)
+      if (req.body.materialCostPerUnit !== undefined) {
+        listing.materialCostPerUnit = Number(req.body.materialCostPerUnit) || 0;
+        listing.supplierPricePerUnit = listing.materialCostPerUnit;
+      } else if (listing.materialCostPerUnit === undefined) {
+        listing.materialCostPerUnit = listing.supplierPricePerUnit || listing.pricePerUnit;
+        listing.supplierPricePerUnit = listing.materialCostPerUnit;
       }
 
-      // Add Admin Profit if provided
+      // 2. Export Cost (Freight, logistics, port charges, export customs)
+      if (req.body.exportCostPerUnit !== undefined) {
+        listing.exportCostPerUnit = Number(req.body.exportCostPerUnit) || 0;
+      } else if (listing.exportCostPerUnit === undefined) {
+        listing.exportCostPerUnit = 0;
+      }
+
+      // 3. Agent Commission (Sourcing/sales broker fee)
+      if (req.body.agentCommissionPerUnit !== undefined) {
+        listing.agentCommissionPerUnit = Number(req.body.agentCommissionPerUnit) || 0;
+        listing.agentRatePerTon = listing.agentCommissionPerUnit;
+      } else if (listing.agentCommissionPerUnit === undefined) {
+        listing.agentCommissionPerUnit = listing.agentRatePerTon || 0;
+      }
+
+      // 4. Admin Profit
       if (req.body.adminProfitPerUnit !== undefined) {
-        const profit = Number(req.body.adminProfitPerUnit) || 0;
-        listing.adminProfitPerUnit = profit;
-        if (req.body.publishedPricePerUnit !== undefined && Number(req.body.publishedPricePerUnit) > 0) {
-          listing.pricePerUnit = Number(req.body.publishedPricePerUnit);
-        } else {
-          listing.pricePerUnit = (listing.supplierPricePerUnit || listing.pricePerUnit) + profit;
-        }
+        listing.adminProfitPerUnit = Number(req.body.adminProfitPerUnit) || 0;
+      } else if (listing.adminProfitPerUnit === undefined) {
+        listing.adminProfitPerUnit = 0;
+      }
+
+      // 5. Final Selling Price to Buyer
+      if (req.body.sellingPricePerUnit !== undefined && Number(req.body.sellingPricePerUnit) > 0) {
+        listing.sellingPricePerUnit = Number(req.body.sellingPricePerUnit);
+        listing.pricePerUnit = listing.sellingPricePerUnit;
+      } else if (req.body.publishedPricePerUnit !== undefined && Number(req.body.publishedPricePerUnit) > 0) {
+        listing.sellingPricePerUnit = Number(req.body.publishedPricePerUnit);
+        listing.pricePerUnit = listing.sellingPricePerUnit;
+      } else {
+        const calculatedSelling = (listing.materialCostPerUnit || 0) + (listing.exportCostPerUnit || 0) + (listing.agentCommissionPerUnit || 0) + (listing.adminProfitPerUnit || 0);
+        listing.sellingPricePerUnit = calculatedSelling;
+        listing.pricePerUnit = calculatedSelling;
       }
 
       // Assign / Tag Buyer Name
@@ -569,18 +597,42 @@ async function startServer() {
     const listing = db.listings.find((l) => l.id === req.params.id);
     if (!listing) return res.status(404).json({ error: 'Listing not found.' });
 
-    if (listing.supplierPricePerUnit === undefined || listing.supplierPricePerUnit === 0) {
-      listing.supplierPricePerUnit = listing.pricePerUnit;
+    // 1. Material Cost (Supplier Asking/Purchase Cost)
+    if (req.body.materialCostPerUnit !== undefined) {
+      listing.materialCostPerUnit = Number(req.body.materialCostPerUnit) || 0;
+      listing.supplierPricePerUnit = listing.materialCostPerUnit;
+    } else if (listing.materialCostPerUnit === undefined) {
+      listing.materialCostPerUnit = listing.supplierPricePerUnit || listing.pricePerUnit;
+      listing.supplierPricePerUnit = listing.materialCostPerUnit;
     }
 
+    // 2. Export Cost (Freight, logistics, port charges, export customs)
+    if (req.body.exportCostPerUnit !== undefined) {
+      listing.exportCostPerUnit = Number(req.body.exportCostPerUnit) || 0;
+    }
+
+    // 3. Agent Commission (Sourcing/sales broker fee)
+    if (req.body.agentCommissionPerUnit !== undefined) {
+      listing.agentCommissionPerUnit = Number(req.body.agentCommissionPerUnit) || 0;
+      listing.agentRatePerTon = listing.agentCommissionPerUnit;
+    }
+
+    // 4. Admin Profit
     if (req.body.adminProfitPerUnit !== undefined) {
-      const profit = Number(req.body.adminProfitPerUnit) || 0;
-      listing.adminProfitPerUnit = profit;
-      if (req.body.publishedPricePerUnit !== undefined && Number(req.body.publishedPricePerUnit) > 0) {
-        listing.pricePerUnit = Number(req.body.publishedPricePerUnit);
-      } else {
-        listing.pricePerUnit = (listing.supplierPricePerUnit || listing.pricePerUnit) + profit;
-      }
+      listing.adminProfitPerUnit = Number(req.body.adminProfitPerUnit) || 0;
+    }
+
+    // 5. Final Selling Price to Buyer
+    if (req.body.sellingPricePerUnit !== undefined && Number(req.body.sellingPricePerUnit) > 0) {
+      listing.sellingPricePerUnit = Number(req.body.sellingPricePerUnit);
+      listing.pricePerUnit = listing.sellingPricePerUnit;
+    } else if (req.body.publishedPricePerUnit !== undefined && Number(req.body.publishedPricePerUnit) > 0) {
+      listing.sellingPricePerUnit = Number(req.body.publishedPricePerUnit);
+      listing.pricePerUnit = listing.sellingPricePerUnit;
+    } else if (req.body.adminProfitPerUnit !== undefined) {
+      const calculatedSelling = (listing.materialCostPerUnit || 0) + (listing.exportCostPerUnit || 0) + (listing.agentCommissionPerUnit || 0) + (listing.adminProfitPerUnit || 0);
+      listing.sellingPricePerUnit = calculatedSelling;
+      listing.pricePerUnit = calculatedSelling;
     }
 
     const targetBuyer = req.body.targetBuyerName || req.body.buyerName;

@@ -109,14 +109,18 @@ export interface ScrapListing {
   isPublished?: boolean;
   publishedAt?: string;
   adminPublishedPrice?: boolean;
-  supplierPricePerUnit?: number; // Base cost / supplier asking price
-  adminProfitPerUnit?: number;   // Admin margin added by admin desk ($/MT)
-  targetBuyerId?: string;        // Assigned/Targeted buyer id
-  targetBuyerName?: string;      // Assigned/Targeted buyer name
-  buyerName?: string;            // Primary buyer name to display
+  supplierPricePerUnit?: number;    // Base cost / supplier asking price
+  materialCostPerUnit?: number;     // Material cost / supplier purchase cost ($/MT)
+  exportCostPerUnit?: number;       // Export logistics, freight, customs & port charges ($/MT)
+  agentCommissionPerUnit?: number;  // Sourcing / sales agent commission ($/MT)
+  adminProfitPerUnit?: number;      // Admin margin added by admin desk ($/MT)
+  sellingPricePerUnit?: number;     // Final published selling price to buyer ($/MT)
+  targetBuyerId?: string;           // Assigned/Targeted buyer id
+  targetBuyerName?: string;         // Assigned/Targeted buyer name
+  buyerName?: string;               // Primary buyer name to display
   assignedAgentId?: string;
   assignedAgentName?: string;
-  agentRatePerTon?: number;  // $ per MT
+  agentRatePerTon?: number;         // $ per MT (agent commission)
   interestedBuyerCount?: number;
   matchedDemandCount?: number;
   createdAt: string;

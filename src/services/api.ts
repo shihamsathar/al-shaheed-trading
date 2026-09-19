@@ -141,7 +141,11 @@ export const api = {
     id: string,
     isPublished: boolean,
     options?: {
+      materialCostPerUnit?: number;
+      exportCostPerUnit?: number;
+      agentCommissionPerUnit?: number;
       adminProfitPerUnit?: number;
+      sellingPricePerUnit?: number;
       targetBuyerId?: string;
       targetBuyerName?: string;
       buyerName?: string;
@@ -160,7 +164,11 @@ export const api = {
   async updateListingCommercial(
     id: string,
     payload: {
+      materialCostPerUnit?: number;
+      exportCostPerUnit?: number;
+      agentCommissionPerUnit?: number;
       adminProfitPerUnit?: number;
+      sellingPricePerUnit?: number;
       targetBuyerId?: string;
       targetBuyerName?: string;
       buyerName?: string;

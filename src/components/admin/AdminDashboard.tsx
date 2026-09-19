@@ -458,11 +458,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
                     <th className="pb-3 font-semibold">Material Lot</th>
-                    <th className="pb-3 font-semibold">Supplier Asking Cost</th>
-                    <th className="pb-3 font-semibold">Admin Profit / Spread</th>
-                    <th className="pb-3 font-semibold">Buyer Invoiced Price</th>
+                    <th className="pb-3 font-semibold">Material Cost</th>
+                    <th className="pb-3 font-semibold">Export Cost</th>
+                    <th className="pb-3 font-semibold">Agent Comm.</th>
+                    <th className="pb-3 font-semibold">Admin Profit</th>
+                    <th className="pb-3 font-semibold">Selling Price</th>
                     <th className="pb-3 font-semibold">Designated Buyer Name</th>
-                    <th className="pb-3 font-semibold">Gatekeeper State</th>
+                    <th className="pb-3 font-semibold">State</th>
                     <th className="pb-3 font-semibold text-right">Moderation Actions</th>
                   </tr>
                 </thead>
@@ -474,15 +476,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                       return true;
                     })
                     .map((item) => {
-                      const supplierCost = item.supplierPricePerUnit || item.pricePerUnit;
-                      const profitPerMT =
-                        item.adminProfitPerUnit !== undefined
-                          ? item.adminProfitPerUnit
-                          : item.isPublished
-                          ? Math.max(0, item.pricePerUnit - supplierCost)
-                          : 0;
+                      const materialCost = Number(item.materialCostPerUnit ?? item.supplierPricePerUnit ?? item.pricePerUnit ?? 300);
+                      const exportCost = Number(item.exportCostPerUnit ?? (item.isPublished ? 20 : 0));
+                      const agentComm = Number(item.agentCommissionPerUnit ?? item.agentRatePerTon ?? (item.isPublished ? 10 : 0));
+                      const profitPerMT = Number(item.adminProfitPerUnit ?? (item.isPublished ? Math.max(0, item.pricePerUnit - materialCost - exportCost - agentComm) : 25));
+                      const sellingPrice = Number(item.sellingPricePerUnit ?? (item.isPublished ? item.pricePerUnit : materialCost + exportCost + agentComm + profitPerMT));
                       const totalProfit = profitPerMT * item.quantity;
-                      const buyerPrice = item.isPublished ? item.pricePerUnit : supplierCost + profitPerMT;
                       const buyerDisplayName = item.targetBuyerName || item.buyerName;
 
                       return (
@@ -508,45 +507,59 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                                 <p className="text-slate-400 text-[11px] font-mono">
                                   {item.quantity.toLocaleString()} {item.quantityUnit} &bull; {item.grade}
                                 </p>
-                                <p className="text-purple-400 text-[10px] font-medium">
+                                <p className="text-purple-400 text-[10px] font-medium truncate max-w-[170px]">
                                   Supplier: {item.supplierCompanyName || 'Registered Yard'}
                                 </p>
                               </div>
                             </div>
                           </td>
 
-                          {/* Supplier Cost */}
+                          {/* 1. Material Cost */}
                           <td className="py-3.5">
-                            <div className="font-mono text-slate-300 font-bold">
-                              ${supplierCost.toLocaleString()}
+                            <div className="font-mono text-slate-200 font-bold">
+                              ${materialCost.toLocaleString()}
                             </div>
                             <span className="text-[10px] text-slate-500 uppercase">
-                              Supplier Cost/{item.quantityUnit}
+                              Supplier Cost
                             </span>
                           </td>
 
-                          {/* Admin Profit */}
+                          {/* 2. Export Cost */}
                           <td className="py-3.5">
-                            {profitPerMT > 0 ? (
-                              <div>
-                                <span className="inline-flex items-center gap-1 font-mono font-black text-emerald-400 text-sm">
-                                  +${profitPerMT}/MT
-                                </span>
-                                <div className="text-[10px] text-emerald-300/80 font-mono font-semibold">
-                                  (+${totalProfit.toLocaleString()} USD Total)
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-slate-500 font-mono text-xs">
-                                +$0 (Pending margin)
-                              </span>
-                            )}
+                            <div className="font-mono text-amber-400 font-bold">
+                              +${exportCost}
+                            </div>
+                            <span className="text-[10px] text-slate-500 uppercase">
+                              Freight &amp; Port
+                            </span>
                           </td>
 
-                          {/* Buyer Price */}
+                          {/* 3. Agent Commission */}
+                          <td className="py-3.5">
+                            <div className="font-mono text-purple-400 font-bold">
+                              +${agentComm}
+                            </div>
+                            <span className="text-[10px] text-slate-500 uppercase">
+                              Agent Fee
+                            </span>
+                          </td>
+
+                          {/* 4. Admin Profit */}
+                          <td className="py-3.5">
+                            <div>
+                              <span className="inline-flex items-center gap-1 font-mono font-black text-emerald-400 text-sm">
+                                +${profitPerMT}/MT
+                              </span>
+                              <div className="text-[10px] text-emerald-300/80 font-mono font-semibold">
+                                (+${totalProfit.toLocaleString()})
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* 5. Selling Price */}
                           <td className="py-3.5">
                             <div className="font-mono font-black text-white text-sm">
-                              ${buyerPrice.toLocaleString()}
+                              ${sellingPrice.toLocaleString()}
                             </div>
                             <span className="text-[10px] text-slate-400">
                               USD / {item.quantityUnit}
@@ -558,16 +571,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                             {item.isPublished && buyerDisplayName ? (
                               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 font-bold text-xs">
                                 <Building2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                                <span className="truncate max-w-[200px]">{buyerDisplayName}</span>
+                                <span className="truncate max-w-[160px]">{buyerDisplayName}</span>
                               </div>
                             ) : item.isPublished ? (
-                              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 font-medium text-xs">
-                                <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span>Open Marketplace (All Buyers)</span>
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 font-medium text-xs">
+                                <Globe className="w-3 h-3 text-slate-400 shrink-0" />
+                                <span>Open Market</span>
                               </div>
                             ) : (
                               <span className="text-slate-500 text-xs italic">
-                                Awaiting Publication
+                                Pending Publish
                               </span>
                             )}
                           </td>
@@ -575,31 +588,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                           {/* Publication Status */}
                           <td className="py-3.5">
                             {item.isPublished ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
                                 <Globe className="w-3 h-3 text-emerald-400" />
-                                Published
+                                Live
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
                                 <Lock className="w-3 h-3 text-amber-400" />
-                                Pending Approval
+                                Review
                               </span>
                             )}
                           </td>
 
                           {/* Actions */}
-                          <td className="py-3.5 text-right space-x-2 whitespace-nowrap">
+                          <td className="py-3.5 text-right space-x-1.5 whitespace-nowrap">
                             {item.isPublished ? (
                               <>
                                 <button
                                   onClick={() => handleOpenPublish(item)}
-                                  className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-xs font-bold transition-colors cursor-pointer"
+                                  className="px-2.5 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-xs font-bold transition-colors cursor-pointer"
                                 >
-                                  Edit Profit &amp; Buyer
+                                  Edit Pricing &amp; Buyer
                                 </button>
                                 <button
                                   onClick={() => handleUnpublish(item)}
-                                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-bold transition-colors cursor-pointer"
+                                  className="px-2 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-bold transition-colors cursor-pointer"
                                 >
                                   Unpublish
                                 </button>
@@ -607,10 +620,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                             ) : (
                               <button
                                 onClick={() => handleOpenPublish(item)}
-                                className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-950/50 flex items-center gap-1.5 ml-auto cursor-pointer"
+                                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-950/50 flex items-center gap-1.5 ml-auto cursor-pointer"
                               >
                                 <DollarSign className="w-3.5 h-3.5" />
-                                Publish with Profit
+                                Publish with Pricing
                               </button>
                             )}
                           </td>
