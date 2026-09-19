@@ -198,6 +198,36 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
             )}
           </div>
 
+          {/* Quick Role Switcher Bar in Header */}
+          <div className="hidden lg:flex items-center bg-slate-900/90 border border-emerald-900/40 rounded-xl p-1 gap-1 shadow-xs">
+            <span className="text-[10px] uppercase font-bold text-slate-400 px-2 tracking-wider">Desk:</span>
+            {[
+              { id: 'ADMIN', label: 'Admin', icon: ShieldCheck, color: 'text-amber-400' },
+              { id: 'SUPPLIER', label: 'Supplier', icon: Building2, color: 'text-blue-400' },
+              { id: 'BUYER', label: 'Buyer', icon: ShoppingCart, color: 'text-emerald-400' },
+              { id: 'AGENT', label: 'Agent', icon: Briefcase, color: 'text-purple-400' },
+            ].map((r) => {
+              const Icon = r.icon;
+              const isActive = role === r.id;
+              return (
+                <button
+                  key={r.id}
+                  id={`header-switch-role-${r.id.toLowerCase()}`}
+                  onClick={() => switchDemoUser(r.id)}
+                  title={`Instant switch to ${r.label} Desk`}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-400'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : r.color}`} />
+                  <span>{r.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* User Profile Pill & Dropdown */}
           <div className="relative">
             <button
@@ -226,7 +256,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
             {showUserMenu && (
               <div
                 id="user-dropdown-menu"
-                className="absolute right-0 mt-2 w-72 bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-emerald-500/20 overflow-hidden z-50 p-2.5 animate-in fade-in slide-in-from-top-2 duration-150"
+                className="absolute right-0 mt-2 w-80 bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-emerald-500/20 overflow-hidden z-50 p-2.5 animate-in fade-in slide-in-from-top-2 duration-150"
               >
                 <div className="p-3.5 border-b border-slate-800 bg-slate-950/80 rounded-xl mb-2">
                   <p className="text-xs font-bold text-white">{user?.name}</p>
@@ -249,6 +279,91 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
                   </div>
                 </div>
 
+                {/* Instant Role Switcher Section inside Dropdown */}
+                <div className="border-t border-slate-800 my-2 pt-2">
+                  <div className="px-3 py-1 text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>Instant Desk Switcher</span>
+                    <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800 font-mono">1-Click</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 p-1 mt-1">
+                    <button
+                      id="dropdown-switch-role-admin"
+                      onClick={() => {
+                        switchDemoUser('ADMIN');
+                        setShowUserMenu(false);
+                      }}
+                      className={`flex items-center gap-1.5 p-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
+                        role === 'ADMIN'
+                          ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-300'
+                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <div className="truncate">
+                        <div>Admin</div>
+                        <div className="text-[9px] opacity-75 font-normal">Pricing &amp; Oversight</div>
+                      </div>
+                    </button>
+
+                    <button
+                      id="dropdown-switch-role-supplier"
+                      onClick={() => {
+                        switchDemoUser('SUPPLIER');
+                        setShowUserMenu(false);
+                      }}
+                      className={`flex items-center gap-1.5 p-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
+                        role === 'SUPPLIER'
+                          ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-300'
+                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <Building2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <div className="truncate">
+                        <div>Supplier</div>
+                        <div className="text-[9px] opacity-75 font-normal">List Lots &amp; Dispatch</div>
+                      </div>
+                    </button>
+
+                    <button
+                      id="dropdown-switch-role-buyer"
+                      onClick={() => {
+                        switchDemoUser('BUYER');
+                        setShowUserMenu(false);
+                      }}
+                      className={`flex items-center gap-1.5 p-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
+                        role === 'BUYER'
+                          ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-300'
+                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <ShoppingCart className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <div className="truncate">
+                        <div>Buyer</div>
+                        <div className="text-[9px] opacity-75 font-normal">Browse &amp; Bid</div>
+                      </div>
+                    </button>
+
+                    <button
+                      id="dropdown-switch-role-agent"
+                      onClick={() => {
+                        switchDemoUser('AGENT');
+                        setShowUserMenu(false);
+                      }}
+                      className={`flex items-center gap-1.5 p-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
+                        role === 'AGENT'
+                          ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-300'
+                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <Briefcase className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <div className="truncate">
+                        <div>Agent</div>
+                        <div className="text-[9px] opacity-75 font-normal">Commissions &amp; Lots</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="border-t border-slate-800 mt-2 pt-2">
                   <button
                     id="logout-btn"
@@ -256,7 +371,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
                       logout();
                       setShowUserMenu(false);
                     }}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold text-rose-300 hover:text-white bg-rose-950/40 hover:bg-rose-900/60 rounded-xl border border-rose-800/40 transition-colors"
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold text-rose-300 hover:text-white bg-rose-950/40 hover:bg-rose-900/60 rounded-xl border border-rose-800/40 transition-colors cursor-pointer"
                   >
                     <LogOut className="w-4 h-4" />
                     <span>Sign Out Desk</span>

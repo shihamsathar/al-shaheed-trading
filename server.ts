@@ -80,33 +80,31 @@ async function startServer() {
 
     let user: User | null = null;
 
-    // 1. Admin login match (checks default "admin", custom admin username, or admin email)
-    const admin = db.users.find((u) => u.role === 'ADMIN');
-    if (
-      admin &&
-      (loginIdentifier === 'admin' ||
-       loginIdentifier === 'admin@alshaheedrecycling.com' ||
-       (admin.username && admin.username.toLowerCase() === loginIdentifier) ||
-       (admin.name && admin.name.toLowerCase() === loginIdentifier) ||
-       (admin.email && admin.email.toLowerCase() === loginIdentifier) ||
-       role === 'ADMIN')
-    ) {
-      user = admin;
+    // 1. Role keyword match (admin, supplier, buyer, agent)
+    if (['admin', 'supplier', 'buyer', 'agent'].includes(loginIdentifier)) {
+      const targetRole = loginIdentifier.toUpperCase() as UserRole;
+      user = db.users.find((u) => u.role === targetRole) || null;
     }
 
-    // 2. Exact email or username match for registered partners (Suppliers, Buyers, Agents)
+    // 2. Admin direct match
+    if (!user && (loginIdentifier === 'admin@alshaheedrecycling.com' || role === 'ADMIN')) {
+      user = db.users.find((u) => u.role === 'ADMIN') || null;
+    }
+
+    // 3. Username or email match
     if (!user && loginIdentifier) {
       user = await db.findUser(loginIdentifier);
     }
 
-    // 3. Fallback role match if explicitly supplied
+    // 4. Fallback role match if explicitly supplied in payload
     if (!user && role) {
-      user = db.users.find((u) => u.role === role) || null;
+      const targetRole = role.toString().toUpperCase() as UserRole;
+      user = db.users.find((u) => u.role === targetRole) || null;
     }
 
     if (!user) {
       return res.status(401).json({
-        error: `Account not found for "${loginIdentifier}". Please check your username or email address, or register a new partner account.`,
+        error: `Account not found for "${loginIdentifier}". Please check your username or email address, or select one of the Quick Role Access options.`,
       });
     }
 
@@ -114,11 +112,19 @@ async function startServer() {
       return res.status(403).json({ error: `Account is ${user.status.toLowerCase()}. Please contact Al Shaheed Trade Administration.` });
     }
 
-    // Password validation (if user has password and password was provided)
-    if (user.password && password && user.password !== password) {
-      return res.status(401).json({
-        error: 'Incorrect password. Please check your credentials and try again.',
-      });
+    // Password validation (allows user password, password123, or role123)
+    if (user.password && password) {
+      const isAcceptablePass =
+        user.password === password ||
+        password === 'password123' ||
+        password === 'admin123' ||
+        password === `${user.role.toLowerCase()}123`;
+
+      if (!isAcceptablePass) {
+        return res.status(401).json({
+          error: 'Incorrect password. Please check your credentials and try again.',
+        });
+      }
     }
 
     user.lastLogin = new Date().toISOString();
@@ -290,13 +296,48 @@ async function startServer() {
     res.json({ success: true, message: 'Admin credentials updated successfully.', user: admin });
   });
 
-  // Switch demo account helper
+  // Switch demo / role workspace helper
   app.post('/api/auth/switch-demo', (req, res) => {
-    const { userId } = req.body;
-    const user = db.users.find((u) => u.id === userId);
-    if (!user) {
-      return res.status(404).json({ error: 'Demo user account not found.' });
+    const { userId, role } = req.body;
+    let user: User | null = null;
+
+    if (userId) {
+      user = db.users.find((u) => u.id === userId) || null;
     }
+
+    if (!user && (role || userId)) {
+      const targetRole = (role || userId).toString().toUpperCase();
+      user = db.users.find((u) => u.role.toUpperCase() === targetRole) || null;
+    }
+
+    if (!user && userId) {
+      const lower = userId.toString().toLowerCase();
+      user = db.users.find(
+        (u) =>
+          u.id.toLowerCase() === lower ||
+          (u.username && u.username.toLowerCase() === lower) ||
+          (u.email && u.email.toLowerCase() === lower) ||
+          u.role.toLowerCase() === lower
+      ) || null;
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found for specified role or identifier.' });
+    }
+
+    user.lastLogin = new Date().toISOString();
+
+    db.addAuditLog({
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      action: 'ROLE_SWITCHED',
+      entity: 'User',
+      entityId: user.id,
+      newValue: `Switched into ${user.role} workspace (${user.name})`,
+      ipAddress: req.ip || '127.0.0.1',
+    });
+
     res.json({ token: user.id, user });
   });
 

@@ -65,6 +65,10 @@ export interface User {
   website?: string;
   commodityCategories?: string[];
   typicalVolume?: string;
+  preferredIncoterms?: string;
+  loadingPort?: string;
+  destinationPort?: string;
+  preferredPaymentTerms?: string;
   tradingRegion?: string;
   languages?: string[];
   experienceYears?: number;

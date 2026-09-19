@@ -61,15 +61,17 @@ class TradingDatabase {
   seedInitialData() {
     this.users = JSON.parse(JSON.stringify(INITIAL_USERS)).map((u: User) => ({
       ...u,
-      username: u.name === 'admin' ? 'admin' : (u.email ? u.email.split('@')[0].toLowerCase() : u.name.toLowerCase().replace(/\s+/g, '')),
+      username: u.username || (u.name === 'admin' ? 'admin' : (u.email ? u.email.split('@')[0].toLowerCase() : u.name.toLowerCase().replace(/\s+/g, ''))),
       password: u.role === 'ADMIN' ? 'admin123' : 'password123',
     }));
-    // Enforce admin user credentials
-    const admin = this.users.find((u) => u.role === 'ADMIN');
-    if (admin) {
-      admin.name = 'admin';
-      admin.username = 'admin';
-      admin.password = 'admin123';
+    // Enforce default credentials for demo/production stability
+    for (const u of this.users) {
+      if (u.role === 'ADMIN') {
+        u.username = 'admin';
+        u.password = 'admin123';
+      } else if (!u.password) {
+        u.password = 'password123';
+      }
     }
     this.listings = JSON.parse(JSON.stringify(INITIAL_LISTINGS));
     this.requirements = JSON.parse(JSON.stringify(INITIAL_REQUIREMENTS));
@@ -87,21 +89,20 @@ class TradingDatabase {
       // 1. Sync Users
       const remoteUsers = await fetchCollection<User>('users');
       if (remoteUsers && remoteUsers.length > 0) {
-        // Exclude any legacy sample accounts if they exist in remote store
-        const cleanRemoteUsers = remoteUsers.filter(
-          (u) =>
-            !u.id.startsWith('usr-sup-') &&
-            !u.id.startsWith('usr-buy-') &&
-            !u.id.startsWith('usr-agt-') &&
-            !u.email?.includes('@example.com')
-        );
         const userMap = new Map<string, User>();
+        // Always maintain the verified institutional accounts (Admin, Supplier, Buyer, Agent)
         this.users.forEach((u) => userMap.set(u.id, u));
-        cleanRemoteUsers.forEach((u) => userMap.set(u.id, u));
+        // Merge in remote users
+        remoteUsers.forEach((u) => {
+          if (!u.email?.includes('@example.com')) {
+            const existing = userMap.get(u.id);
+            userMap.set(u.id, existing ? { ...existing, ...u } : u);
+          }
+        });
         this.users = Array.from(userMap.values());
-        console.log(`[Firestore] Loaded ${cleanRemoteUsers.length} persistent accounts.`);
+        console.log(`[Firestore] Database active with ${this.users.length} institutional & registered accounts.`);
       } else {
-        console.log('[Firestore] Initializing clean admin account in cloud store...');
+        console.log('[Firestore] Initializing official institutional accounts in cloud store...');
         for (const u of this.users) {
           await saveDocument('users', u);
         }

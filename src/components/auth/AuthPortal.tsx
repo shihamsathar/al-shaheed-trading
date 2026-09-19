@@ -28,6 +28,7 @@ import {
   Briefcase,
   Truck,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react';
 import {
   COUNTRIES_LIST,
@@ -138,6 +139,30 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // 1-Click Instant Login for Any Role
+  const handleQuickLogin = async (targetRole: UserRole, loginUser: string, loginPass: string) => {
+    setError(null);
+    setIsSubmitting(true);
+    setLoginEmail(loginUser);
+    setLoginPassword(loginPass);
+
+    try {
+      await login(loginUser, loginPass, targetRole);
+      setSuccessMsg(`Authenticated as ${targetRole}! Opening trading workspace...`);
+      if (onSuccess) onSuccess();
+    } catch (err: any) {
+      setError(err.message || `Failed to sign in as ${targetRole}.`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAutofill = (loginUser: string, loginPass: string) => {
+    setLoginEmail(loginUser);
+    setLoginPassword(loginPass);
+    setError(null);
   };
 
   // Submit Supplier Registration
@@ -372,27 +397,257 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         )}
 
         {/* ========================================================================= */}
-        {/* MODE 1: CLEAN, BRIGHT SIGN IN / LOGIN VIEW */}
+        {/* MODE 1: CLEAN, BRIGHT SIGN IN / LOGIN VIEW WITH ROLE SWITCHING */}
         {/* ========================================================================= */}
         {mode === 'login' && (
-          <div className="max-w-md w-full mx-auto">
-            <div className="bg-white border border-slate-200/90 rounded-3xl p-7 sm:p-9 shadow-xl shadow-slate-200/60 relative">
-              {/* Header inside Card */}
-              <div className="text-center mb-6">
-                <Logo variant="official" size="lg" className="mb-3" />
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 mb-2">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-                  Institutional Trading Portal
+          <div className="max-w-5xl w-full mx-auto space-y-7">
+            {/* Header */}
+            <div className="text-center max-w-xl mx-auto">
+              <Logo variant="official" size="lg" className="mb-3" />
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 mb-2">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+                Institutional Trading Portal
+              </div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                Trading Desk Sign In
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                Select your designated role for instant 1-click access, test randomly across personas, or sign in with your credentials.
+              </p>
+            </div>
+
+            {/* Quick Role Access Cards (4 Roles + Random Button) */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xl shadow-slate-200/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 mb-5">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    Instant Role Access Desks
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    1-Click verified enterprise sign-in for testing all 4 institutional viewpoints.
+                  </p>
                 </div>
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                  Sign In to Desk
-                </h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  Enter your credentials to access the Al Shaheed trading desk.
+                
+                {/* Random Role Button */}
+                <button
+                  id="random-role-login-btn"
+                  type="button"
+                  disabled={isSubmitting || authLoading}
+                  onClick={() => {
+                    const roles: { role: UserRole; u: string; p: string }[] = [
+                      { role: 'ADMIN', u: 'admin', p: 'admin123' },
+                      { role: 'SUPPLIER', u: 'supplier', p: 'password123' },
+                      { role: 'BUYER', u: 'buyer', p: 'password123' },
+                      { role: 'AGENT', u: 'agent', p: 'password123' },
+                    ];
+                    const chosen = roles[Math.floor(Math.random() * roles.length)];
+                    handleQuickLogin(chosen.role, chosen.u, chosen.p);
+                  }}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer shrink-0"
+                >
+                  <span className="text-base">🎲</span>
+                  <span>Random Role Quick Test</span>
+                </button>
+              </div>
+
+              {/* 4 Role Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. Admin */}
+                <div className="bg-gradient-to-b from-amber-50/70 to-white border border-amber-200/80 rounded-2xl p-4 flex flex-col justify-between hover:shadow-md transition-all">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                        ADMIN
+                      </span>
+                      <span className="text-xs font-mono text-slate-400">admin</span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                      <h4 className="text-sm font-bold text-slate-900">Administrator Desk</h4>
+                    </div>
+                    <p className="text-[11px] text-slate-600 line-clamp-2 mb-3">
+                      Pricing markup, margin &amp; profit controls, counterparty moderation, audit log.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5 pt-2 border-t border-amber-100/80">
+                    <button
+                      id="quick-login-admin-btn"
+                      type="button"
+                      disabled={isSubmitting || authLoading}
+                      onClick={() => handleQuickLogin('ADMIN', 'admin', 'admin123')}
+                      className="w-full py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <span>Sign In as Admin</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAutofill('admin', 'admin123')}
+                      className="w-full py-1 text-[11px] font-medium text-slate-500 hover:text-amber-800 transition-colors"
+                    >
+                      Autofill credentials
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Supplier */}
+                <div className="bg-gradient-to-b from-blue-50/70 to-white border border-blue-200/80 rounded-2xl p-4 flex flex-col justify-between hover:shadow-md transition-all">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-200">
+                        SUPPLIER
+                      </span>
+                      <span className="text-xs font-mono text-slate-400">supplier</span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Truck className="w-4 h-4 text-blue-600 shrink-0" />
+                      <h4 className="text-sm font-bold text-slate-900">Scrap Supplier</h4>
+                    </div>
+                    <p className="text-[11px] text-slate-600 line-clamp-2 mb-3">
+                      List scrap lots, weighbridge receipts, Hamad Port dispatch, yard inventory.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5 pt-2 border-t border-blue-100/80">
+                    <button
+                      id="quick-login-supplier-btn"
+                      type="button"
+                      disabled={isSubmitting || authLoading}
+                      onClick={() => handleQuickLogin('SUPPLIER', 'supplier', 'password123')}
+                      className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <span>Sign In as Supplier</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAutofill('supplier', 'password123')}
+                      className="w-full py-1 text-[11px] font-medium text-slate-500 hover:text-blue-800 transition-colors"
+                    >
+                      Autofill credentials
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Buyer */}
+                <div className="bg-gradient-to-b from-emerald-50/70 to-white border border-emerald-200/80 rounded-2xl p-4 flex flex-col justify-between hover:shadow-md transition-all">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">
+                        BUYER
+                      </span>
+                      <span className="text-xs font-mono text-slate-400">buyer</span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Building2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <h4 className="text-sm font-bold text-slate-900">Industrial Buyer</h4>
+                    </div>
+                    <p className="text-[11px] text-slate-600 line-clamp-2 mb-3">
+                      Browse marketplace, post RFQs, place bids, purchase scrap lots &amp; LC escrow.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5 pt-2 border-t border-emerald-100/80">
+                    <button
+                      id="quick-login-buyer-btn"
+                      type="button"
+                      disabled={isSubmitting || authLoading}
+                      onClick={() => handleQuickLogin('BUYER', 'buyer', 'password123')}
+                      className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <span>Sign In as Buyer</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAutofill('buyer', 'password123')}
+                      className="w-full py-1 text-[11px] font-medium text-slate-500 hover:text-emerald-800 transition-colors"
+                    >
+                      Autofill credentials
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4. Agent */}
+                <div className="bg-gradient-to-b from-purple-50/70 to-white border border-purple-200/80 rounded-2xl p-4 flex flex-col justify-between hover:shadow-md transition-all">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                        AGENT
+                      </span>
+                      <span className="text-xs font-mono text-slate-400">agent</span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Briefcase className="w-4 h-4 text-purple-600 shrink-0" />
+                      <h4 className="text-sm font-bold text-slate-900">Trading Agent</h4>
+                    </div>
+                    <p className="text-[11px] text-slate-600 line-clamp-2 mb-3">
+                      Assigned scrap lots, counterparty introductions, commission tracking ($/MT).
+                    </p>
+                  </div>
+                  <div className="space-y-1.5 pt-2 border-t border-purple-100/80">
+                    <button
+                      id="quick-login-agent-btn"
+                      type="button"
+                      disabled={isSubmitting || authLoading}
+                      onClick={() => handleQuickLogin('AGENT', 'agent', 'password123')}
+                      className="w-full py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <span>Sign In as Agent</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAutofill('agent', 'password123')}
+                      className="w-full py-1 text-[11px] font-medium text-slate-500 hover:text-purple-800 transition-colors"
+                    >
+                      Autofill credentials
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Manual Form Card */}
+            <div className="max-w-md w-full mx-auto bg-white border border-slate-200/90 rounded-3xl p-7 sm:p-9 shadow-xl shadow-slate-200/60 relative">
+              <div className="text-center mb-6">
+                <h3 className="text-base font-black text-slate-900 tracking-tight">
+                  Enter Desk Credentials
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Type <span className="font-mono font-bold text-slate-800">admin</span>, <span className="font-mono font-bold text-slate-800">supplier</span>, <span className="font-mono font-bold text-slate-800">buyer</span>, <span className="font-mono font-bold text-slate-800">agent</span>, or your registered email.
                 </p>
-                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 font-medium">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>Continuous login with your username or email & password</span>
+
+                {/* Quick Autofill Pills */}
+                <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Autofill:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleAutofill('admin', 'admin123')}
+                    className="px-2 py-0.5 rounded-lg text-xs font-medium bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition-all cursor-pointer"
+                  >
+                    👑 Admin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAutofill('supplier', 'password123')}
+                    className="px-2 py-0.5 rounded-lg text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 transition-all cursor-pointer"
+                  >
+                    🏭 Supplier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAutofill('buyer', 'password123')}
+                    className="px-2 py-0.5 rounded-lg text-xs font-medium bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 transition-all cursor-pointer"
+                  >
+                    🏢 Buyer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAutofill('agent', 'password123')}
+                    className="px-2 py-0.5 rounded-lg text-xs font-medium bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 transition-all cursor-pointer"
+                  >
+                    🤝 Agent
+                  </button>
                 </div>
               </div>
 
@@ -413,7 +668,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       required
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
-                      placeholder="e.g. admin or yourname@company.com"
+                      placeholder="e.g. admin, supplier, buyer, agent, or email"
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 hover:bg-slate-100/50 focus:bg-white border border-slate-300 focus:border-emerald-600 rounded-xl text-slate-900 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all font-mono"
                     />
                   </div>
@@ -480,7 +735,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       </span>
                     ) : (
                       <>
-                        <span>Sign In</span>
+                        <span>Sign In to Desk</span>
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
