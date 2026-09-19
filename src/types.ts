@@ -72,6 +72,9 @@ export interface User {
   tradingRegion?: string;
   languages?: string[];
   experienceYears?: number;
+  createdById?: string;
+  createdByName?: string;
+  assignedAgentId?: string;
   status: 'ACTIVE' | 'PENDING_APPROVAL' | 'SUSPENDED' | 'DEACTIVATED';
   createdAt: string;
   lastLogin?: string;

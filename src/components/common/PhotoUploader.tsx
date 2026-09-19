@@ -28,9 +28,9 @@ export interface PhotoUploaderProps {
 export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
   photos = [],
   onChange,
-  maxPhotos = 12,
+  maxPhotos = 30,
   label = 'Material & Yard Photos',
-  subtitle = 'Take high-res photos via phone camera, upload from desktop, or drag & drop',
+  subtitle = 'Take high-res photos via phone camera, upload from desktop, or drag & drop in bulk',
   required = false,
   allowCamera = true,
 }) => {
@@ -40,14 +40,35 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
   const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isProcessingFiles, setIsProcessingFiles] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
-  // Handle local file uploads (desktop or phone gallery)
-  const processFiles = (files: FileList | null) => {
+  // High-resolution authentic sample photos for instant testing & bulk demo
+  const SAMPLE_SCRAP_PHOTOS = [
+    'https://images.unsplash.com/photo-1578328819058-b69f3a3b0f6b?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1530587191325-3db32d826c18?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1587293852726-70cdb56c2866?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800&auto=format&fit=crop&q=80',
+  ];
+
+  const handleAddSampleBulkPhotos = () => {
+    const remainingSlots = maxPhotos - photos.length;
+    if (remainingSlots <= 0) {
+      alert(`Maximum limit of ${maxPhotos} photos reached.`);
+      return;
+    }
+    const toAdd = SAMPLE_SCRAP_PHOTOS.slice(0, remainingSlots);
+    onChange([...photos, ...toAdd]);
+  };
+
+  // Handle local file uploads (desktop or phone gallery) with concurrent Promise.all batch reading
+  const processFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
     const remainingSlots = maxPhotos - photos.length;
@@ -57,22 +78,33 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
     }
 
     const filesToRead = Array.from(files).slice(0, remainingSlots);
+    setIsProcessingFiles(true);
 
-    filesToRead.forEach((file) => {
-      if (!file.type.startsWith('image/')) {
-        alert(`File "${file.name}" is not an image.`);
-        return;
+    try {
+      const readPromises = filesToRead.map((file) => {
+        return new Promise<string | null>((resolve) => {
+          if (!file.type.startsWith('image/')) {
+            resolve(null);
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target?.result as string;
+            resolve(result || null);
+          };
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(file);
+        });
+      });
+
+      const loadedResults = await Promise.all(readPromises);
+      const validResults = loadedResults.filter((res): res is string => Boolean(res));
+      if (validResults.length > 0) {
+        onChange([...photos, ...validResults]);
       }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        if (result) {
-          onChange([...photos, result]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    } finally {
+      setIsProcessingFiles(false);
+    }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -244,10 +276,21 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-            title="Choose photos from your computer or phone library"
+            title="Choose photos from your computer or phone library (select multiple files for bulk upload)"
           >
             <Upload className="w-3.5 h-3.5" />
-            <span>Upload Files</span>
+            <span>Upload Bulk Files</span>
+          </button>
+
+          {/* Quick Bulk Scrap Photos Presets */}
+          <button
+            type="button"
+            onClick={handleAddSampleBulkPhotos}
+            className="px-2.5 py-1.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-700 dark:text-amber-400 border border-amber-500/40 active:scale-95 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Inject batch of authentic ISRI scrap yard inspection photos"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span className="hidden sm:inline">Bulk Samples</span>
           </button>
 
           {/* Add by Link URL */}

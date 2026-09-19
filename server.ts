@@ -598,6 +598,51 @@ async function startServer() {
       if (req.body.targetBuyerId !== undefined) {
         listing.targetBuyerId = req.body.targetBuyerId;
       }
+
+      // Assign / Tag Broker Agent simultaneously
+      if (req.body.assignedAgentId !== undefined) {
+        listing.assignedAgentId = req.body.assignedAgentId;
+      }
+      if (req.body.assignedAgentName !== undefined) {
+        listing.assignedAgentName = req.body.assignedAgentName;
+      }
+      if (listing.assignedAgentId) {
+        const foundAgent = db.users.find((u) => u.id === listing.assignedAgentId);
+        if (foundAgent) {
+          listing.assignedAgentName = foundAgent.name;
+        }
+
+        // Synchronize in db.assignments so Agent sees it immediately in Assigned Materials
+        const existingAsg = db.assignments.find(
+          (a) => a.listingId === listing.id && a.agentId === listing.assignedAgentId
+        );
+        const commRate = listing.agentCommissionPerUnit || listing.agentRatePerTon || 15;
+        const salesPrice = listing.sellingPricePerUnit || listing.pricePerUnit || 380;
+        if (existingAsg) {
+          existingAsg.agentRatePerTon = commRate;
+          existingAsg.targetSalesPrice = salesPrice;
+          existingAsg.calculatedAgentAmount = (listing.quantity || 1) * commRate;
+          existingAsg.updatedAt = new Date().toISOString();
+          await db.saveAssignment(existingAsg);
+        } else {
+          const newAsg: any = {
+            id: `asg-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            listingId: listing.id,
+            materialName: listing.materialName,
+            agentId: listing.assignedAgentId,
+            agentName: listing.assignedAgentName || 'Assigned Broker',
+            quantityMT: listing.quantity || 100,
+            agentRatePerTon: commRate,
+            calculatedAgentAmount: (listing.quantity || 100) * commRate,
+            targetSalesPrice: salesPrice,
+            assignedAt: new Date().toISOString(),
+            status: 'ASSIGNED',
+            commercialTerms: `Admin published assignment. Designated buyer: ${listing.targetBuyerName || 'Open Regional Market'}.`,
+          };
+          await db.saveAssignment(newAsg);
+        }
+      }
+
       if (req.body.adminNotes !== undefined) {
         listing.adminNotes = req.body.adminNotes;
       }
@@ -748,7 +793,14 @@ async function startServer() {
     const listing = db.listings.find((l) => l.id === req.params.id);
     if (!listing) return res.status(404).json({ error: 'Listing not found.' });
 
-    const allowed = ['materialName', 'commodityCategory', 'grade', 'quantity', 'pricePerUnit', 'countryOfOrigin', 'portOfShipping', 'destinationPort', 'packaging', 'incoterms', 'paymentTerms', 'status', 'description', 'adminNotes'];
+    const allowed = [
+      'materialName', 'commodityCategory', 'grade', 'quantity', 'pricePerUnit',
+      'countryOfOrigin', 'portOfShipping', 'destinationPort', 'packaging',
+      'incoterms', 'paymentTerms', 'status', 'description', 'adminNotes',
+      'photos', 'targetBuyerId', 'targetBuyerName', 'buyerName',
+      'assignedAgentId', 'assignedAgentName', 'agentRatePerTon', 'agentCommissionPerUnit',
+      'adminProfitPerUnit', 'materialCostPerUnit', 'exportCostPerUnit', 'sellingPricePerUnit'
+    ];
     allowed.forEach((f) => {
       if (req.body[f] !== undefined) {
         (listing as any)[f] = req.body[f];
@@ -766,6 +818,41 @@ async function startServer() {
       entity: 'ScrapListing',
       entityId: listing.id,
       newValue: `Updated ${listing.materialName} (${listing.quantity} MT @ $${listing.pricePerUnit})`,
+      ipAddress: req.ip || '127.0.0.1',
+    });
+
+    res.json(listing);
+  });
+
+  // Admin / Supplier Bulk Photos Update for a Listing
+  app.patch('/api/listings/:id/photos', requireAuth, requireRole(['ADMIN', 'SUPPLIER']), async (req, res) => {
+    const listing = db.listings.find((l) => l.id === req.params.id);
+    if (!listing) return res.status(404).json({ error: 'Listing not found.' });
+
+    if (!Array.isArray(req.body.photos)) {
+      return res.status(400).json({ error: 'photos must be an array of image strings/URLs.' });
+    }
+
+    listing.photos = req.body.photos;
+    listing.updatedAt = new Date().toISOString();
+    await db.saveListing(listing);
+
+    // Also update photos in any active agent assignment for this listing
+    db.assignments.forEach((asg) => {
+      if (asg.listingId === listing.id) {
+        (asg as any).photos = listing.photos;
+        db.saveAssignment(asg).catch(() => {});
+      }
+    });
+
+    db.addAuditLog({
+      userId: (req as any).user.id,
+      userName: (req as any).user.name,
+      userRole: (req as any).user.role,
+      action: 'LISTING_PHOTOS_UPDATED',
+      entity: 'ScrapListing',
+      entityId: listing.id,
+      newValue: `Updated ${listing.materialName} photos count: ${listing.photos.length}`,
       ipAddress: req.ip || '127.0.0.1',
     });
 
@@ -1499,7 +1586,7 @@ async function startServer() {
     res.json(enriched);
   });
 
-  app.get('/api/buyers', requireAuth, requireRole(['ADMIN']), (req, res) => {
+  app.get('/api/buyers', requireAuth, requireRole(['ADMIN', 'AGENT']), (req, res) => {
     const buyers = db.users.filter((u) => u.role === 'BUYER');
     const enriched = buyers.map((b) => {
       const userReqs = db.requirements.filter((r) => r.buyerId === b.id);
@@ -1513,6 +1600,189 @@ async function startServer() {
       };
     });
     res.json(enriched);
+  });
+
+  // Admin Batch Post Buyers and Agents at a time
+  app.post('/api/admin/counterparties/batch', requireAuth, requireRole(['ADMIN']), async (req, res) => {
+    const items = req.body.counterparties || req.body.items || [];
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'counterparties array is required and cannot be empty.' });
+    }
+
+    const createdUsers: User[] = [];
+    const errors: string[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const role = (item.role || 'BUYER').toUpperCase();
+      if (role !== 'BUYER' && role !== 'AGENT') {
+        errors.push(`Row ${i + 1}: Invalid role "${item.role}". Must be BUYER or AGENT.`);
+        continue;
+      }
+
+      const name = (item.name || '').trim();
+      if (!name) {
+        errors.push(`Row ${i + 1}: Name is required.`);
+        continue;
+      }
+
+      // Generate or clean email
+      let email = (item.email || '').trim().toLowerCase();
+      if (!email) {
+        const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        email = `${slug || 'counterparty'}${Date.now().toString().slice(-4)}@alshaheed-partner.com`;
+      }
+
+      // Ensure unique email
+      const existing = await db.findUser(email);
+      if (existing) {
+        email = `${email.split('@')[0]}_${Date.now().toString().slice(-3)}@${email.split('@')[1] || 'alshaheed.com'}`;
+      }
+
+      const username = (item.username || email.split('@')[0]).trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+
+      const newUser: User = {
+        id: `usr-${role.toLowerCase().slice(0, 3)}-${Date.now().toString().slice(-5)}-${Math.floor(Math.random() * 1000)}`,
+        email,
+        username,
+        password: item.password || (role === 'ADMIN' ? 'admin123' : 'password123'),
+        name,
+        role: role as UserRole,
+        companyName: item.companyName || name,
+        phone: item.phone || '+974 4488 0000',
+        country: item.country || (role === 'AGENT' ? 'Qatar' : 'India'),
+        city: item.city || (role === 'AGENT' ? 'Doha' : 'Mumbai'),
+        tradingRegion: item.tradingRegion || 'GCC / Middle East / South Asia',
+        commodityCategories: item.commodityCategories || ['Metal Scrap'],
+        preferredIncoterms: item.preferredIncoterms || 'CIF',
+        destinationPort: item.destinationPort || 'Nhava Sheva Port, India',
+        status: (item.status || 'ACTIVE') as any,
+        createdById: (req as any).user.id,
+        createdByName: (req as any).user.name,
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+      };
+
+      await db.saveUser(newUser);
+      createdUsers.push(newUser);
+
+      db.addAuditLog({
+        userId: (req as any).user.id,
+        userName: (req as any).user.name,
+        userRole: 'ADMIN',
+        action: 'BATCH_COUNTERPARTY_POSTED',
+        entity: 'User',
+        entityId: newUser.id,
+        newValue: `Batch posted ${newUser.role}: ${newUser.name} (${newUser.companyName})`,
+        ipAddress: req.ip || '127.0.0.1',
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      count: createdUsers.length,
+      users: createdUsers,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  });
+
+  // Agent: Add Any Amount of Buyers (Single or Batch)
+  app.post('/api/agent/buyers', requireAuth, requireRole(['AGENT', 'ADMIN']), async (req, res) => {
+    let inputList = req.body.buyers;
+    if (!inputList) {
+      if (req.body.name) {
+        inputList = [req.body];
+      } else {
+        return res.status(400).json({ error: 'Buyer data or buyers array is required.' });
+      }
+    }
+
+    if (!Array.isArray(inputList) || inputList.length === 0) {
+      return res.status(400).json({ error: 'buyers array cannot be empty.' });
+    }
+
+    const createdBuyers: User[] = [];
+    const agentUser = (req as any).user;
+
+    for (let i = 0; i < inputList.length; i++) {
+      const b = inputList[i];
+      const name = (b.name || '').trim();
+      if (!name) continue;
+
+      let email = (b.email || '').trim().toLowerCase();
+      if (!email) {
+        const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        email = `${slug || 'buyer'}${Date.now().toString().slice(-4)}@buyer-corp.com`;
+      }
+
+      const existing = await db.findUser(email);
+      if (existing) {
+        email = `${email.split('@')[0]}_${Date.now().toString().slice(-3)}@buyer-corp.com`;
+      }
+
+      const username = (b.username || email.split('@')[0]).trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+
+      const newBuyer: User = {
+        id: `usr-buy-${Date.now().toString().slice(-5)}-${Math.floor(Math.random() * 1000)}`,
+        email,
+        username,
+        password: b.password || 'password123',
+        name,
+        role: 'BUYER',
+        companyName: b.companyName || name,
+        phone: b.phone || '+974 5500 0000',
+        country: b.country || 'India',
+        city: b.city || 'Mumbai',
+        tradingRegion: b.tradingRegion || 'South Asia & Global',
+        commodityCategories: b.commodityCategories || ['Metal Scrap'],
+        preferredIncoterms: b.preferredIncoterms || 'CIF',
+        destinationPort: b.destinationPort || 'Nhava Sheva Port, India',
+        typicalVolume: b.typicalVolume || '500 MT/month',
+        assignedAgentId: agentUser.id,
+        createdById: agentUser.id,
+        createdByName: agentUser.name,
+        status: 'ACTIVE',
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+      };
+
+      await db.saveUser(newBuyer);
+      createdBuyers.push(newBuyer);
+
+      db.addAuditLog({
+        userId: agentUser.id,
+        userName: agentUser.name,
+        userRole: agentUser.role,
+        action: 'AGENT_BUYER_ADDED',
+        entity: 'User',
+        entityId: newBuyer.id,
+        newValue: `Agent ${agentUser.name} onboarded Buyer: ${newBuyer.companyName} (${newBuyer.name})`,
+        ipAddress: req.ip || '127.0.0.1',
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      count: createdBuyers.length,
+      buyers: createdBuyers,
+    });
+  });
+
+  // Agent: Get My Registered Buyers
+  app.get('/api/agent/buyers', requireAuth, requireRole(['AGENT', 'ADMIN']), (req, res) => {
+    const currentUserId = (req as any).user.id;
+    const currentUserRole = (req as any).user.role;
+
+    let buyers = db.users.filter((u) => u.role === 'BUYER');
+    // If agent, highlight ones registered by or assigned to them, or all buyers
+    if (currentUserRole === 'AGENT') {
+      buyers = buyers.map((b) => ({
+        ...b,
+        isMyClient: b.assignedAgentId === currentUserId || b.createdById === currentUserId,
+      }));
+    }
+
+    res.json(buyers);
   });
 
   // Admin Add Counterparty

@@ -149,6 +149,8 @@ export const api = {
       targetBuyerId?: string;
       targetBuyerName?: string;
       buyerName?: string;
+      assignedAgentId?: string;
+      assignedAgentName?: string;
       publishedPricePerUnit?: number;
       adminNotes?: string;
     }
@@ -159,6 +161,15 @@ export const api = {
       body: JSON.stringify({ isPublished, ...options }),
     });
     return handleResponse<{ success: boolean; listing: any }>(res);
+  },
+
+  async updateListingPhotos(id: string, photos: string[]) {
+    const res = await fetch(`${API_BASE}/listings/${id}/photos`, {
+      method: 'PATCH',
+      headers: getAuthHeader(),
+      body: JSON.stringify({ photos }),
+    });
+    return handleResponse<any>(res);
   },
 
   async updateListingCommercial(
