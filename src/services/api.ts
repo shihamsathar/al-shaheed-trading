@@ -50,6 +50,15 @@ export const api = {
     return handleResponse<{ token: string; user: any }>(res);
   },
 
+  async resetPassword(data: { usernameOrEmail: string; newPassword: string; role?: string }) {
+    const res = await fetch(`${API_BASE}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<{ success: boolean; message: string; user: any }>(res);
+  },
+
   async logout() {
     try {
       await fetch(`${API_BASE}/auth/logout`, {

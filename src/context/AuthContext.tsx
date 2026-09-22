@@ -17,6 +17,7 @@ interface AuthContextType {
   unreadCount: number;
   login: (email: string, password?: string, role?: string) => Promise<void>;
   register: (data: any) => Promise<void>;
+  resetPassword: (usernameOrEmail: string, newPassword: string) => Promise<{ success: boolean; message: string; user: any }>;
   logout: () => void;
   switchDemoUser: (userId: string) => Promise<void>;
   refreshUserData: () => Promise<void>;
@@ -89,6 +90,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const resetPassword = async (usernameOrEmail: string, newPassword: string) => {
+    return await api.resetPassword({ usernameOrEmail, newPassword });
+  };
+
   const logout = async () => {
     try {
       await api.logout();
@@ -156,6 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unreadCount,
         login,
         register,
+        resetPassword,
         logout,
         switchDemoUser,
         refreshUserData,

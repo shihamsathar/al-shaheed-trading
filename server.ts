@@ -80,20 +80,20 @@ async function startServer() {
 
     let user: User | null = null;
 
-    // 1. Role keyword match (admin, supplier, buyer, agent)
-    if (['admin', 'supplier', 'buyer', 'agent'].includes(loginIdentifier)) {
+    // 1. Direct username, email, or ID match from database (checks registered users and memory)
+    if (loginIdentifier) {
+      user = await db.findUser(loginIdentifier);
+    }
+
+    // 2. Role keyword match (admin, supplier, buyer, agent) if not found by specific identifier
+    if (!user && ['admin', 'supplier', 'buyer', 'agent'].includes(loginIdentifier)) {
       const targetRole = loginIdentifier.toUpperCase() as UserRole;
       user = db.users.find((u) => u.role === targetRole) || null;
     }
 
-    // 2. Admin direct match
+    // 3. Admin direct email match
     if (!user && (loginIdentifier === 'admin@alshaheedrecycling.com' || role === 'ADMIN')) {
       user = db.users.find((u) => u.role === 'ADMIN') || null;
-    }
-
-    // 3. Username or email match
-    if (!user && loginIdentifier) {
-      user = await db.findUser(loginIdentifier);
     }
 
     // 4. Fallback role match if explicitly supplied in payload
@@ -104,7 +104,7 @@ async function startServer() {
 
     if (!user) {
       return res.status(401).json({
-        error: `Account not found for "${loginIdentifier}". Please check your username or email address, or select one of the Quick Role Access options.`,
+        error: `Account not found for "${loginIdentifier}". Please check your username or email address, or create a new account.`,
       });
     }
 
@@ -169,6 +169,85 @@ async function startServer() {
     res.json({ success: true, message: 'Logged out successfully.' });
   });
 
+  // --- FORGOT PASSWORD / RESET PASSWORD (WORKS FOR ALL LOGINS: ADMIN, SUPPLIER, BUYER, AGENT) ---
+  app.post('/api/auth/reset-password', async (req, res) => {
+    const { usernameOrEmail, username, email, newPassword, role } = req.body;
+    const identifier = (usernameOrEmail || username || email || '').trim().toLowerCase();
+    const cleanPassword = (newPassword || '').trim();
+
+    if (!identifier) {
+      return res.status(400).json({ error: 'Please provide your User Name or Email address.' });
+    }
+
+    if (!cleanPassword || cleanPassword.length < 4) {
+      return res.status(400).json({ error: 'New password must be at least 4 characters long.' });
+    }
+
+    let user: User | null = null;
+
+    // 1. Direct username/email lookup
+    user = await db.findUser(identifier);
+
+    // 2. Role keyword lookup (admin, supplier, buyer, agent)
+    if (!user && ['admin', 'supplier', 'buyer', 'agent'].includes(identifier)) {
+      const targetRole = identifier.toUpperCase() as UserRole;
+      user = db.users.find((u) => u.role === targetRole) || null;
+    }
+
+    // 3. Admin direct match
+    if (!user && (identifier === 'admin@alshaheedrecycling.com' || role === 'ADMIN')) {
+      user = db.users.find((u) => u.role === 'ADMIN') || null;
+    }
+
+    // 4. Role-based fallback if provided
+    if (!user && role) {
+      const targetRole = role.toString().toUpperCase() as UserRole;
+      user = db.users.find((u) => u.role === targetRole) || null;
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        error: `No account found for "${identifier}". Please verify your User Name or Email address, or create a new account.`,
+      });
+    }
+
+    // Update the password in database & Firestore
+    user.password = cleanPassword;
+    await db.saveUser(user);
+
+    db.addNotification({
+      recipientId: user.id,
+      recipientRole: user.role,
+      title: 'Password Updated',
+      message: `Your account password has been reset successfully. You can now log in anytime with your new password.`,
+      type: 'INFO',
+      priority: 'NORMAL',
+    });
+
+    db.addAuditLog({
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      action: 'USER_PASSWORD_RESET',
+      entity: 'User',
+      entityId: user.id,
+      newValue: `Password reset for user "${user.username || user.email}" (${user.role})`,
+      ipAddress: req.ip || '127.0.0.1',
+    });
+
+    res.json({
+      success: true,
+      message: `New password created successfully! You can now log in with your updated credentials.`,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
+    });
+  });
+
   app.post('/api/auth/register', async (req, res) => {
     const {
       role,
@@ -198,16 +277,21 @@ async function startServer() {
     const cleanEmail = email.trim().toLowerCase();
     const cleanUsername = (username || email.split('@')[0]).trim().toLowerCase();
 
-    const existing = await db.findUser(cleanEmail);
-    if (existing) {
+    const existingEmail = await db.findUser(cleanEmail);
+    if (existingEmail) {
       return res.status(400).json({ error: 'An account with this email address already exists. Please sign in.' });
+    }
+
+    const existingUsername = await db.findUser(cleanUsername);
+    if (existingUsername) {
+      return res.status(400).json({ error: 'This user name is already taken. Please choose a different user name.' });
     }
 
     const newUser: User = {
       id: `usr-${role.toLowerCase().slice(0, 3)}-${Date.now().toString().slice(-4)}`,
       email: cleanEmail,
       username: cleanUsername,
-      password: password || 'password123',
+      password: (password || 'password123').trim(),
       name,
       role: role as UserRole,
       companyName: companyName || name,
