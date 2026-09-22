@@ -745,132 +745,123 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
 
                   {/* Admin OTP Verification Panel */}
                   <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3.5">
-                    <div className="flex items-start gap-2.5">
-                      <div className="p-2 rounded-lg bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 shrink-0 mt-0.5">
-                        <ShieldCheck className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black text-white">Admin Pre-Verification Protocol</h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                          Al Shaheed Admin Central Desk issues an official 6-digit OTP verification code to approve your {regRole.toLowerCase()} registration.
-                        </p>
-                      </div>
-                    </div>
-
-                    {!otpRequested ? (
-                      <div className="space-y-2 pt-1">
-                        <button
-                          id="request-admin-otp-button"
-                          type="button"
-                          disabled={isRequestingOtp || !regEmail || !regName || !regCompanyName}
-                          onClick={() => handleRequestAdminOtp()}
-                          className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs tracking-wide flex items-center justify-center gap-2 shadow-md shadow-emerald-950/50 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isRequestingOtp ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                              <span>Requesting Admin OTP Code...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Send className="w-3.5 h-3.5 text-slate-950" />
-                              <span>Request Admin OTP Verification Code</span>
-                            </>
-                          )}
-                        </button>
-                        <div className="text-center">
-                          <button
-                            type="button"
-                            onClick={() => setOtpRequested(true)}
-                            className="text-[11px] text-slate-400 hover:text-emerald-300 underline cursor-pointer"
-                          >
-                            Already received an Admin OTP code? Click here to enter code
-                          </button>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <div className="p-2 rounded-lg bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 shrink-0 mt-0.5">
+                          <ShieldCheck className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-white">Admin Pre-Verification Protocol</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                            Al Shaheed Admin Central Desk issues an official 6-digit OTP code to authorize your {regRole.toLowerCase()} account.
+                          </p>
                         </div>
                       </div>
-                    ) : (
-                      <form onSubmit={handleVerifyAdminOtp} className="space-y-3 pt-1">
-                        {/* Live preview banner for easy evaluation */}
-                        {otpPreview && (
-                          <div className="p-2.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-2">
-                              <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                              <span className="text-emerald-300 font-medium">
-                                Admin Dispatched Code: <strong className="font-mono text-white tracking-wider text-sm">{otpPreview}</strong>
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRegOtpCode(otpPreview);
-                                setCopiedCode(true);
-                                setTimeout(() => setCopiedCode(false), 2000);
-                              }}
-                              className="px-2 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] rounded-md transition-colors cursor-pointer flex items-center gap-1"
-                            >
-                              {copiedCode ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                              <span>{copiedCode ? 'Filled' : 'Auto-Fill'}</span>
-                            </button>
-                          </div>
-                        )}
 
-                        <div>
+                      {/* Request OTP button right on top */}
+                      <button
+                        id="request-admin-otp-button"
+                        type="button"
+                        disabled={isRequestingOtp || !regEmail || !regName || !regCompanyName}
+                        onClick={() => handleRequestAdminOtp()}
+                        className="py-1.5 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={!regEmail || !regName || !regCompanyName ? 'Fill Name, Company & Email first' : 'Dispatch or resend code'}
+                      >
+                        {isRequestingOtp ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Requesting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5" />
+                            <span>{otpRequested ? 'Resend Code' : 'Request OTP'}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Live preview banner when code is dispatched or preview available */}
+                    {otpPreview && (
+                      <div className="p-2.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span className="text-emerald-300 font-medium">
+                            Admin Dispatched Code: <strong className="font-mono text-white tracking-wider text-sm">{otpPreview}</strong>
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRegOtpCode(otpPreview);
+                            setCopiedCode(true);
+                            setTimeout(() => setCopiedCode(false), 2000);
+                          }}
+                          className="px-2 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          {copiedCode ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedCode ? 'Filled' : 'Auto-Fill'}</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* The 6-digit input form is ALWAYS accessible */}
+                    <form onSubmit={handleVerifyAdminOtp} className="space-y-3 pt-1">
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
                           <label
                             htmlFor="register-otp-code"
-                            className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+                            className="block text-xs font-bold text-slate-300 uppercase tracking-wider"
                           >
                             Enter 6-Digit Admin OTP Code <span className="text-rose-400">*</span>
                           </label>
-                          <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                              <KeyRound className="w-4 h-4 text-emerald-400" />
-                            </div>
-                            <input
-                              id="register-otp-code"
-                              type="text"
-                              maxLength={6}
-                              required
-                              disabled={isVerifyingOtp}
-                              value={regOtpCode}
-                              onChange={(e) => setRegOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
-                              placeholder="000000"
-                              className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-emerald-500/50 rounded-xl text-center font-mono text-lg font-black tracking-[0.4em] text-emerald-300 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
-                            />
+                          <span className="text-[10px] text-slate-500">
+                            Issued by Central Admin Desk
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                            <KeyRound className="w-4 h-4 text-emerald-400" />
                           </div>
+                          <input
+                            id="register-otp-code"
+                            type="text"
+                            maxLength={6}
+                            required
+                            disabled={isVerifyingOtp}
+                            value={regOtpCode}
+                            onChange={(e) => setRegOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="000000"
+                            className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-emerald-500/50 rounded-xl text-center font-mono text-lg font-black tracking-[0.4em] text-emerald-300 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
+                          />
                         </div>
+                      </div>
 
-                        <div className="flex items-center gap-2">
-                          <button
-                            id="verify-admin-otp-button"
-                            type="submit"
-                            disabled={isVerifyingOtp || regOtpCode.trim().length !== 6}
-                            className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs tracking-wide flex items-center justify-center gap-2 shadow-md shadow-emerald-950/50 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isVerifyingOtp ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                                <span>Verifying Admin OTP...</span>
-                              </>
-                            ) : (
-                              <>
-                                <ShieldCheck className="w-4 h-4 text-slate-950" />
-                                <span>Verify Admin OTP Code</span>
-                              </>
-                            )}
-                          </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          id="verify-admin-otp-button"
+                          type="submit"
+                          disabled={isVerifyingOtp || regOtpCode.trim().length !== 6}
+                          className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs tracking-wide flex items-center justify-center gap-2 shadow-md shadow-emerald-950/50 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isVerifyingOtp ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                              <span>Verifying Admin OTP...</span>
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="w-4 h-4 text-slate-950" />
+                              <span>Verify Admin OTP &amp; Proceed to Credentials</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
 
-                          <button
-                            type="button"
-                            disabled={isRequestingOtp}
-                            onClick={() => handleRequestAdminOtp()}
-                            className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors cursor-pointer"
-                            title="Resend Code"
-                          >
-                            Resend
-                          </button>
-                        </div>
-                      </form>
-                    )}
+                      <p className="text-[11px] text-center text-slate-400">
+                        Don't have a code yet? Fill contact details above &amp; click <strong className="text-emerald-400 font-semibold cursor-pointer" onClick={() => (!isRequestingOtp && regEmail && regName && regCompanyName) && handleRequestAdminOtp()}>"Request OTP"</strong> to have the Admin Central Desk dispatch your code.
+                      </p>
+                    </form>
                   </div>
                 </div>
               )}

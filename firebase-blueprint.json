@@ -178,6 +178,29 @@
         "platformFeePercentage": { "type": "number" }
       },
       "required": ["companyName", "defaultCurrency"]
+    },
+    "RegistrationOtp": {
+      "title": "RegistrationOtp",
+      "description": "Admin-issued 6-digit OTP verification codes gating institutional partner onboarding",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "role": { "type": "string", "enum": ["SUPPLIER", "BUYER", "AGENT"] },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "companyName": { "type": "string" },
+        "phone": { "type": "string" },
+        "country": { "type": "string" },
+        "city": { "type": "string" },
+        "otpCode": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "VERIFIED", "USED", "EXPIRED"] },
+        "issuedBy": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "verifiedAt": { "type": "string" },
+        "usedAt": { "type": "string" }
+      },
+      "required": ["id", "role", "email", "name", "companyName", "otpCode", "status", "issuedBy", "createdAt", "expiresAt"]
     }
   },
   "firestore": {
@@ -216,6 +239,10 @@
     "/systemSettings/{settingId}": {
       "schema": { "$ref": "#/entities/SystemSettings" },
       "description": "Platform operational settings"
+    },
+    "/registrationOtps/{otpId}": {
+      "schema": { "$ref": "#/entities/RegistrationOtp" },
+      "description": "Admin verification OTP records for partner onboarding"
     }
   }
 }

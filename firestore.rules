@@ -63,5 +63,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true;
     }
+
+    // Registration OTPs (Admin-issued and applicant pre-verification)
+    match /registrationOtps/{otpId} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }

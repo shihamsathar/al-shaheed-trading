@@ -203,6 +203,10 @@ class TradingDatabase {
 
   // Registration OTP CRUD
   async saveRegistrationOtp(otp: RegistrationOtp): Promise<RegistrationOtp> {
+    const rawCode = otp.otpCode || (otp as any).code || '';
+    otp.otpCode = rawCode;
+    (otp as any).code = rawCode;
+
     const idx = this.registrationOtps.findIndex((o) => o.id === otp.id);
     if (idx >= 0) {
       this.registrationOtps[idx] = otp;
@@ -219,8 +223,15 @@ class TradingDatabase {
     if (!cleanEmail || !cleanOtp) return null;
 
     const found = this.registrationOtps.find(
-      (o) => o.email.toLowerCase() === cleanEmail && o.otpCode === cleanOtp
+      (o) =>
+        o.email.toLowerCase() === cleanEmail &&
+        (o.otpCode === cleanOtp || (o as any).code === cleanOtp)
     );
+    if (found) {
+      const code = found.otpCode || (found as any).code;
+      found.otpCode = code;
+      (found as any).code = code;
+    }
     return found || null;
   }
 

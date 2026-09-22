@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../common/Badge';
 import { User, UserRole } from '../../types';
 import {
@@ -43,6 +44,7 @@ const COMMODITY_OPTIONS = [
 ];
 
 export const AdminCounterparties: React.FC = () => {
+  const { user } = useAuth();
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [buyers, setBuyers] = useState<any[]>([]);
   const [registrationOtps, setRegistrationOtps] = useState<any[]>([]);
@@ -113,9 +115,11 @@ export const AdminCounterparties: React.FC = () => {
   };
 
   useEffect(() => {
-    loadCounterparties();
-    loadRegistrationOtps();
-  }, []);
+    if (user?.role === 'ADMIN') {
+      loadCounterparties();
+      loadRegistrationOtps();
+    }
+  }, [user?.role]);
 
   const handleIssueOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,7 +145,8 @@ export const AdminCounterparties: React.FC = () => {
     try {
       setActionLoading(true);
       const res = await api.resendAdminRegistrationOtp(otpId);
-      setNotification(`Fresh OTP dispatched to ${email}: Code ${res.otp.code}`);
+      const code = res.otp.otpCode || (res.otp as any).code || '';
+      setNotification(`Fresh OTP dispatched to ${email}: Code ${code}`);
       setTimeout(() => setNotification(null), 5000);
       await loadRegistrationOtps();
     } catch (err: any) {
@@ -276,18 +281,33 @@ export const AdminCounterparties: React.FC = () => {
 
   const filteredOtps = registrationOtps.filter((item) => {
     const s = searchTerm.toLowerCase();
+    const code = item.otpCode || (item as any).code || '';
     return (
       item.name?.toLowerCase().includes(s) ||
       item.companyName?.toLowerCase().includes(s) ||
       item.email?.toLowerCase().includes(s) ||
       item.role?.toLowerCase().includes(s) ||
-      item.code?.toLowerCase().includes(s)
+      code.toLowerCase().includes(s)
     );
   });
 
   const pendingOtpsCount = registrationOtps.filter((o) => o.status === 'PENDING').length;
   const verifiedOtpsCount = registrationOtps.filter((o) => o.status === 'VERIFIED').length;
   const usedOtpsCount = registrationOtps.filter((o) => o.status === 'USED').length;
+
+  if (user && user.role !== 'ADMIN') {
+    return (
+      <div className="p-8 text-center bg-slate-900 border border-rose-900/50 rounded-2xl max-w-lg mx-auto my-12 shadow-xl">
+        <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto mb-3">
+          <AlertTriangle className="w-6 h-6" />
+        </div>
+        <h2 className="text-lg font-bold text-white mb-2">Access Restricted to Platform Admin</h2>
+        <p className="text-xs text-slate-400">
+          Counterparty directories and Admin OTP issuance are strictly reserved for Al Shaheed central trade administration.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-12">
@@ -553,11 +573,11 @@ export const AdminCounterparties: React.FC = () => {
                             Admin OTP Verification Code
                           </p>
                           <p className="text-xl font-black font-mono tracking-widest text-emerald-400 mt-0.5">
-                            {otp.code}
+                            {otp.otpCode || (otp as any).code}
                           </p>
                         </div>
                         <button
-                          onClick={() => copyToClipboard(otp.code, otp.id)}
+                          onClick={() => copyToClipboard(otp.otpCode || (otp as any).code, otp.id)}
                           className="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
                           title="Copy 6-digit code"
                         >
@@ -969,10 +989,10 @@ export const AdminCounterparties: React.FC = () => {
 
                   <div className="my-3 p-3.5 bg-slate-950 rounded-xl border border-emerald-500/40 flex items-center justify-between">
                     <span className="font-mono text-2xl font-black tracking-widest text-emerald-400">
-                      {issuedOtpData.code}
+                      {issuedOtpData.otpCode || issuedOtpData.code}
                     </span>
                     <button
-                      onClick={() => copyToClipboard(issuedOtpData.code, 'modal')}
+                      onClick={() => copyToClipboard(issuedOtpData.otpCode || issuedOtpData.code, 'modal')}
                       className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition-colors cursor-pointer flex items-center gap-1"
                     >
                       {copiedOtpId === 'modal' ? (
