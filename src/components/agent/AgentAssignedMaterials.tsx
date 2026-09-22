@@ -4,6 +4,7 @@ import { api } from '../../services/api';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
 import { AgentAssignment } from '../../types';
+import { PhotoGalleryModal } from '../common/PhotoGalleryModal';
 import { PhotoUploader } from '../common/PhotoUploader';
 import {
   Boxes,
@@ -22,6 +23,12 @@ export const AgentAssignedMaterials: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedAsg, setSelectedAsg] = useState<AgentAssignment | null>(null);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+
+  // High-Res Inspection Photo Gallery State
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [galleryPhotos, setGalleryPhotos] = useState<string[]>([]);
+  const [galleryTitle, setGalleryTitle] = useState('');
+  const [gallerySubtitle, setGallerySubtitle] = useState('');
 
   const [clientForm, setClientForm] = useState({
     clientCompanyName: '',
@@ -97,6 +104,37 @@ export const AgentAssignedMaterials: React.FC = () => {
               <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-1">
                 {asg.materialName}
               </h3>
+
+              {/* Material Inspection Photos Preview */}
+              {asg.photos && asg.photos.length > 0 ? (
+                <div className="relative mt-3 rounded-xl overflow-hidden group/img aspect-video bg-slate-950 border border-slate-800">
+                  <img
+                    src={asg.photos[0]}
+                    alt={asg.materialName}
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover/img:scale-105"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end justify-between p-2.5">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-900/80 text-white backdrop-blur-md border border-white/10">
+                      {asg.photos.length} {asg.photos.length === 1 ? 'Photo' : 'Photos'}
+                    </span>
+                    <button
+                      type="button"
+                      id={`agent-view-photos-${asg.id}`}
+                      onClick={() => {
+                        setGalleryPhotos(asg.photos || []);
+                        setGalleryTitle(`${asg.materialName} - Lot Inspection Photos`);
+                        setGallerySubtitle(`Assigned Lot #${asg.id} • ${asg.quantityMT} MT • Fixed Agent Commission: $${asg.agentRatePerTon}/MT`);
+                        setIsGalleryOpen(true);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] shadow-md transition-all flex items-center gap-1 cursor-pointer"
+                    >
+                      <Eye className="w-3 h-3" />
+                      <span>View &amp; Download</span>
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mt-3 p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-1.5">
                 <div className="flex justify-between items-center text-xs">
@@ -253,6 +291,15 @@ export const AgentAssignedMaterials: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* High-Resolution Inspection Photo Gallery for Agent */}
+      <PhotoGalleryModal
+        isOpen={isGalleryOpen}
+        onClose={() => setIsGalleryOpen(false)}
+        photos={galleryPhotos}
+        title={galleryTitle}
+        subtitle={gallerySubtitle}
+      />
     </div>
   );
 };

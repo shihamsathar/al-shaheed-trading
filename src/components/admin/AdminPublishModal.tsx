@@ -48,6 +48,7 @@ export const AdminPublishModal: React.FC<AdminPublishModalProps> = ({
   onSuccess,
 }) => {
   const [registeredBuyers, setRegisteredBuyers] = useState<any[]>([]);
+  const [registeredAgents, setRegisteredAgents] = useState<any[]>([]);
   
   // 4 Cost Components + Final Selling Price
   const [materialCost, setMaterialCost] = useState<number>(300);
@@ -56,9 +57,11 @@ export const AdminPublishModal: React.FC<AdminPublishModalProps> = ({
   const [adminProfit, setAdminProfit] = useState<number>(25);
   const [sellingPrice, setSellingPrice] = useState<number>(355);
 
-  // Counterparty
+  // Counterparty: Buyer & Agent
   const [buyerName, setBuyerName] = useState<string>('');
   const [targetBuyerId, setTargetBuyerId] = useState<string>('');
+  const [assignedAgentId, setAssignedAgentId] = useState<string>('');
+  const [assignedAgentName, setAssignedAgentName] = useState<string>('');
   const [adminNotes, setAdminNotes] = useState<string>('');
   const [saving, setSaving] = useState<boolean>(false);
 
@@ -84,12 +87,20 @@ export const AdminPublishModal: React.FC<AdminPublishModalProps> = ({
 
       setBuyerName(listing.targetBuyerName || listing.buyerName || '');
       setTargetBuyerId(listing.targetBuyerId || '');
+      setAssignedAgentId(listing.assignedAgentId || '');
+      setAssignedAgentName(listing.assignedAgentName || '');
       setAdminNotes(listing.adminNotes || '');
 
-      // Load registered buyers from server
+      // Load registered buyers & agents from server
       api.getBuyers().then((buyers) => {
         if (Array.isArray(buyers)) {
           setRegisteredBuyers(buyers);
+        }
+      }).catch(() => {});
+
+      api.getAgents().then((agents) => {
+        if (Array.isArray(agents)) {
+          setRegisteredAgents(agents);
         }
       }).catch(() => {});
     }
@@ -161,6 +172,8 @@ export const AdminPublishModal: React.FC<AdminPublishModalProps> = ({
         targetBuyerName: buyerName.trim() || 'General Marketplace',
         buyerName: buyerName.trim() || 'General Marketplace',
         targetBuyerId: targetBuyerId || undefined,
+        assignedAgentId: assignedAgentId || undefined,
+        assignedAgentName: assignedAgentName || undefined,
         adminNotes,
       };
 
@@ -457,23 +470,69 @@ export const AdminPublishModal: React.FC<AdminPublishModalProps> = ({
             </div>
           </div>
 
-          {/* Section 2: Buyer Name Designation */}
-          <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+          {/* Section 2: Simultaneous Counterparty Assignment (Buyer and Agent at a time) */}
+          <div className="space-y-4 pt-3 border-t border-slate-100 dark:border-slate-800">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 uppercase tracking-wider">
-                <Building2 className="w-4 h-4 text-blue-500" />
-                Step 2: Assign or Show Buyer Name
+                <Users className="w-4 h-4 text-purple-500" />
+                Step 2: Assign Buyer and Broker Agent at a Time
               </label>
-              <span className="text-[11px] text-slate-400">
-                Visible on Admin Executive Dashboard
+              <span className="text-[11px] text-emerald-500 font-semibold">
+                Simultaneous Counterparty Binding
               </span>
             </div>
 
-            <div>
-              <label className="text-[11px] font-medium text-slate-500 block mb-1">
-                Designated Buyer Company Name
-              </label>
-              <div className="relative">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Left Column: Assigned Broker Agent */}
+              <div className="p-3.5 rounded-2xl bg-purple-950/20 border border-purple-800/30 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-purple-400 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" />
+                    Assigned Sourcing / Broker Agent
+                  </span>
+                  <span className="text-[10px] font-mono text-purple-300">
+                    Commission: ${agentCommission}/MT (${totalAgentCommission.toLocaleString()})
+                  </span>
+                </div>
+
+                <select
+                  value={assignedAgentId}
+                  onChange={(e) => {
+                    const selId = e.target.value;
+                    setAssignedAgentId(selId);
+                    const found = registeredAgents.find((a) => a.id === selId);
+                    setAssignedAgentName(found ? found.name : '');
+                  }}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-hidden focus:border-purple-400"
+                >
+                  <option value="">-- Open to All Agents / Al Shaheed Desk --</option>
+                  {registeredAgents.map((ag) => (
+                    <option key={ag.id} value={ag.id}>
+                      {ag.name} ({ag.companyName || 'Broker Agent'} • {ag.country || 'Qatar'})
+                    </option>
+                  ))}
+                </select>
+
+                {assignedAgentId && (
+                  <div className="p-2 rounded-xl bg-purple-900/30 border border-purple-700/40 text-[11px] text-purple-200 flex items-center justify-between">
+                    <span>Broker: <strong>{assignedAgentName}</strong></span>
+                    <span className="font-mono text-emerald-400 font-bold">Auto-syncs to Agent desk</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Designated Buyer */}
+              <div className="p-3.5 rounded-2xl bg-blue-950/20 border border-blue-800/30 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5" />
+                    Designated Buyer Company Name
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    Target Importer
+                  </span>
+                </div>
+
                 <input
                   type="text"
                   required
@@ -482,39 +541,32 @@ export const AdminPublishModal: React.FC<AdminPublishModalProps> = ({
                     setBuyerName(e.target.value);
                     setTargetBuyerId('');
                   }}
-                  placeholder="e.g. Qatar Steel Industries or Doha Steel Works"
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-medium text-sm focus:outline-hidden focus:border-blue-500 transition-colors"
+                  placeholder="e.g. Qatar Steel Industries or Nhava Sheva Importer"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-hidden focus:border-blue-400"
                 />
+
+                {registeredBuyers.length > 0 && (
+                  <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+                    {registeredBuyers.slice(0, 4).map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => handleSelectBuyer(b.companyName || b.name, b.id)}
+                        className={`px-2 py-0.5 text-[10px] rounded-md border transition-all cursor-pointer ${
+                          buyerName === (b.companyName || b.name)
+                            ? 'bg-blue-600 text-white border-blue-600 font-bold'
+                            : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-blue-400'
+                        }`}
+                      >
+                        {b.companyName || b.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Registered Buyers in DB */}
-            {registeredBuyers.length > 0 && (
-              <div>
-                <span className="text-[11px] font-semibold text-slate-500 block mb-1.5 flex items-center gap-1">
-                  <Users className="w-3 h-3 text-blue-500" />
-                  Select from Registered Buyers in Platform:
-                </span>
-                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                  {registeredBuyers.map((b) => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      onClick={() => handleSelectBuyer(b.companyName || b.name, b.id)}
-                      className={`px-2.5 py-1 text-xs rounded-lg border transition-all cursor-pointer text-left ${
-                        buyerName === (b.companyName || b.name)
-                          ? 'bg-blue-600 text-white border-blue-600 font-bold'
-                          : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-400'
-                      }`}
-                    >
-                      {b.companyName || b.name} ({b.country || 'Verified'})
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Popular Suggestions */}
+            {/* Popular Buyer Suggestions */}
             <div>
               <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">
                 Suggested Industrial Counterparties:

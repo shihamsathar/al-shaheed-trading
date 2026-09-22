@@ -3,6 +3,7 @@ import { api } from '../../services/api';
 import { Badge } from '../common/Badge';
 import { ScrapListing } from '../../types';
 import { AdminPublishModal } from './AdminPublishModal';
+import { AdminBatchCounterpartiesModal } from './AdminBatchCounterpartiesModal';
 import {
   Boxes,
   Users,
@@ -41,6 +42,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const [moderationTab, setModerationTab] = useState<'ALL' | 'PUBLISHED' | 'PENDING'>('ALL');
   const [publishModalListing, setPublishModalListing] = useState<ScrapListing | null>(null);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+
+  const loadDashboardData = async () => {
+    try {
+      const [sum, matchData, txns, listData] = await Promise.all([
+        api.getAnalyticsSummary(),
+        api.getMatches(),
+        api.getTransactions(),
+        api.getListings(),
+      ]);
+      setSummary(sum);
+      setMatches(matchData.slice(0, 4));
+      setTransactions(txns.slice(0, 5));
+      setListings(listData);
+    } catch (err) {
+      console.error('Error loading admin dashboard:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleOpenPublish = (item: ScrapListing) => {
     setPublishModalListing(item);
@@ -65,24 +86,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   };
 
   useEffect(() => {
-    async function loadDashboardData() {
-      try {
-        const [sum, matchData, txns, listData] = await Promise.all([
-          api.getAnalyticsSummary(),
-          api.getMatches(),
-          api.getTransactions(),
-          api.getListings(),
-        ]);
-        setSummary(sum);
-        setMatches(matchData.slice(0, 4));
-        setTransactions(txns.slice(0, 5));
-        setListings(listData);
-      } catch (err) {
-        console.error('Error loading admin dashboard:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
     loadDashboardData();
   }, []);
 
@@ -182,7 +185,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5">
               <button
                 id="admin-btn-open-workspace"
                 onClick={() => onNavigate('admin-matching')}
@@ -190,6 +193,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               >
                 <Layers className="w-4 h-4" />
                 <span>AI Matching Hub ({matches.length})</span>
+              </button>
+
+              <button
+                id="admin-btn-batch-counterparties"
+                onClick={() => setIsBatchModalOpen(true)}
+                className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-950/40 transition-all cursor-pointer"
+                title="Post multiple buyers and broker agents at a time"
+              >
+                <Users className="w-4 h-4" />
+                <span>Post Buyers &amp; Agents</span>
               </button>
 
               <button
@@ -858,6 +871,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
           setPublishModalListing(null);
         }}
         onSuccess={handlePublishSuccess}
+      />
+
+      {/* Admin Batch Post Counterparties Modal (Buyers & Agents at a time) */}
+      <AdminBatchCounterpartiesModal
+        isOpen={isBatchModalOpen}
+        onClose={() => setIsBatchModalOpen(false)}
+        onSuccess={() => {
+          loadDashboardData();
+        }}
       />
     </div>
   );

@@ -33,6 +33,7 @@ import { BuyerTransactions } from './components/buyer/BuyerTransactions';
 import { AgentDashboard } from './components/agent/AgentDashboard';
 import { AgentAssignedMaterials } from './components/agent/AgentAssignedMaterials';
 import { AgentCommissionLedger } from './components/agent/AgentCommissionLedger';
+import { AgentBuyers } from './components/agent/AgentBuyers';
 
 const MainLayout: React.FC = () => {
   const { user, loading } = useAuth();
@@ -141,6 +142,8 @@ const MainLayout: React.FC = () => {
         return <AgentDashboard onNavigate={(tab) => setActiveTab(tab)} />;
       case 'agent-assigned-materials':
         return <AgentAssignedMaterials />;
+      case 'agent-buyers':
+        return <AgentBuyers />;
       case 'agent-commission-ledger':
         return <AgentCommissionLedger />;
 

@@ -235,6 +235,10 @@ export interface AgentAssignment {
   latestUpdate?: string;
   assignedAt: string;
   updatedAt: string;
+  photos?: string[];
+  portOfShipping?: string;
+  grade?: string;
+  packaging?: string;
 }
 
 export interface PurchaseRecord {

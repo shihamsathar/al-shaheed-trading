@@ -83,6 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { section: 'BROKERAGE DESK' },
     { id: 'agent-dashboard', label: 'Agent Command Center', icon: LayoutDashboard },
     { id: 'agent-assigned-materials', label: 'Assigned Materials', icon: Boxes },
+    { id: 'agent-buyers', label: 'My Buyers (Add / Manage)', icon: Users },
     { id: 'agent-commission-ledger', label: 'Commissions & Ledger', icon: DollarSign },
   ];
 
@@ -192,10 +193,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               logout();
               onClose();
             }}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-semibold text-rose-300 hover:text-white bg-rose-950/30 hover:bg-rose-900/50 border border-rose-800/30 transition-all"
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold text-rose-300 hover:text-white bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 transition-all cursor-pointer shadow-xs"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out Desk</span>
+            <span>Log Out</span>
           </button>
         </div>
       </aside>

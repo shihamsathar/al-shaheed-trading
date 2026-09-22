@@ -97,6 +97,14 @@ export const AgentDashboard: React.FC<AgentDashboardProps> = ({ onNavigate }) =>
             </button>
 
             <button
+              onClick={() => onNavigate('agent-buyers')}
+              className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-950/40 transition-all cursor-pointer"
+            >
+              <Users className="w-4 h-4 text-purple-200" />
+              <span>My Buyers (Add Any Amount)</span>
+            </button>
+
+            <button
               onClick={() => onNavigate('agent-commission-ledger')}
               className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-white font-bold text-xs border border-amber-500/30 backdrop-blur-md transition-all cursor-pointer"
             >

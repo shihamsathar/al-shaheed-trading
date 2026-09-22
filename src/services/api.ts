@@ -399,6 +399,31 @@ export const api = {
     return handleResponse<any>(res);
   },
 
+  async batchPostCounterparties(counterparties: any[]) {
+    const res = await fetch(`${API_BASE}/admin/counterparties/batch`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify({ counterparties }),
+    });
+    return handleResponse<{ success: boolean; count: number; users: any[]; errors?: string[] }>(res);
+  },
+
+  async agentAddBuyers(buyers: any[] | any) {
+    const res = await fetch(`${API_BASE}/agent/buyers`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify(Array.isArray(buyers) ? { buyers } : buyers),
+    });
+    return handleResponse<{ success: boolean; count: number; buyers: any[] }>(res);
+  },
+
+  async agentGetBuyers() {
+    const res = await fetch(`${API_BASE}/agent/buyers`, {
+      headers: getAuthHeader(),
+    });
+    return handleResponse<any[]>(res);
+  },
+
   async updateCounterparty(id: string, data: any) {
     const res = await fetch(`${API_BASE}/counterparties/${id}`, {
       method: 'PUT',

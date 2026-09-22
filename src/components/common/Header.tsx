@@ -226,6 +226,22 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
                 </button>
               );
             })}
+
+            {/* Random Role Switcher */}
+            <button
+              id="header-switch-role-random"
+              onClick={() => {
+                const allRoles = ['ADMIN', 'SUPPLIER', 'BUYER', 'AGENT'];
+                const otherRoles = allRoles.filter((r) => r !== role);
+                const randomRole = otherRoles[Math.floor(Math.random() * otherRoles.length)];
+                switchDemoUser(randomRole as any);
+              }}
+              title="Randomly switch across Admin, Supplier, Buyer, and Agent desks"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer border-l border-slate-800 pl-2 ml-0.5"
+            >
+              <span>🎲</span>
+              <span className="hidden xl:inline">Random</span>
+            </button>
           </div>
 
           {/* User Profile Pill & Dropdown */}
@@ -371,15 +387,26 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
                       logout();
                       setShowUserMenu(false);
                     }}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold text-rose-300 hover:text-white bg-rose-950/40 hover:bg-rose-900/60 rounded-xl border border-rose-800/40 transition-colors cursor-pointer"
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-bold text-rose-300 hover:text-white bg-rose-950/50 hover:bg-rose-900/70 rounded-xl border border-rose-800/40 transition-colors cursor-pointer"
                   >
                     <LogOut className="w-4 h-4" />
-                    <span>Sign Out Desk</span>
+                    <span>Log Out</span>
                   </button>
                 </div>
               </div>
             )}
           </div>
+
+          {/* Direct 1-Click Logout Button in Header Bar */}
+          <button
+            id="header-direct-logout-button"
+            onClick={() => logout()}
+            title="Log Out of Al Shaheed Portal"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-300 hover:text-white bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 transition-all cursor-pointer shadow-xs"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Log Out</span>
+          </button>
         </div>
       </div>
     </header>
