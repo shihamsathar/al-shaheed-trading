@@ -62,7 +62,7 @@ const MainLayout: React.FC = () => {
       setActiveTab('buyer-dashboard');
     } else if (user.role === 'AGENT' && !activeTab.startsWith('agent')) {
       setActiveTab('agent-dashboard');
-    } else if (user.role === 'ADMIN' && !activeTab.startsWith('admin') && !activeTab.startsWith('supplier') && !activeTab.startsWith('buyer') && !activeTab.startsWith('agent')) {
+    } else if (user.role === 'ADMIN' && !activeTab.startsWith('admin')) {
       setActiveTab('admin-dashboard');
     }
   }, [user?.role, user?.id]);
@@ -93,7 +93,7 @@ const MainLayout: React.FC = () => {
   }
 
   const renderContent = () => {
-    // Enforce role isolation: non-admins cannot render other roles' views
+    // Enforce strict role isolation: roles cannot render any other roles' dashboards
     if (user.role === 'SUPPLIER' && !activeTab.startsWith('supplier')) {
       return <SupplierDashboard onNavigate={(tab) => setActiveTab(tab)} />;
     }
@@ -102,6 +102,9 @@ const MainLayout: React.FC = () => {
     }
     if (user.role === 'AGENT' && !activeTab.startsWith('agent')) {
       return <AgentDashboard onNavigate={(tab) => setActiveTab(tab)} />;
+    }
+    if (user.role === 'ADMIN' && !activeTab.startsWith('admin')) {
+      return <AdminDashboard onNavigate={(tab) => setActiveTab(tab)} />;
     }
 
     switch (activeTab) {
@@ -166,7 +169,10 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#070d0d] text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950 relative">
-      <Header onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+      <Header
+        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        activeViewTitle={activeTab}
+      />
 
       <div className="flex flex-1 overflow-hidden relative">
         <Sidebar

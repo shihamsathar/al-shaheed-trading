@@ -18,6 +18,7 @@ import {
   AuditLog,
   SystemSettings,
   UserRole,
+  RegistrationOtp,
 } from '../src/types.js';
 
 import {
@@ -50,6 +51,7 @@ class TradingDatabase {
   documents: TradeDocument[] = [];
   notifications: Notification[] = [];
   auditLogs: AuditLog[] = [];
+  registrationOtps: RegistrationOtp[] = [];
   settings: SystemSettings = { ...DEFAULT_SYSTEM_SETTINGS };
   private initialized = false;
 
@@ -81,6 +83,61 @@ class TradingDatabase {
     this.notifications = JSON.parse(JSON.stringify(INITIAL_NOTIFICATIONS));
     this.auditLogs = JSON.parse(JSON.stringify(INITIAL_AUDIT_LOGS));
     this.settings = JSON.parse(JSON.stringify(DEFAULT_SYSTEM_SETTINGS));
+
+    // Initial Registration OTPs (Official Admin Verification Desk)
+    this.registrationOtps = [
+      {
+        id: 'otp-demo-01',
+        role: 'SUPPLIER',
+        email: 'supplier@qatarmetals.com',
+        name: 'Nasser Al-Kuwari',
+        companyName: 'Qatar Metal Recycling Yard W.L.L.',
+        phone: '+974 55123456',
+        country: 'Qatar',
+        city: 'Doha',
+        otpCode: '849201',
+        status: 'USED',
+        issuedBy: 'ADMIN',
+        createdAt: '2026-01-12T07:45:00Z',
+        expiresAt: '2026-01-12T08:45:00Z',
+        verifiedAt: '2026-01-12T07:55:00Z',
+        usedAt: '2026-01-12T08:00:00Z',
+      },
+      {
+        id: 'otp-demo-02',
+        role: 'BUYER',
+        email: 'procurement@jswsteel.in',
+        name: 'Rajesh Mehta',
+        companyName: 'JSW Steel & Alloys Ltd',
+        phone: '+91 9820123456',
+        country: 'India',
+        city: 'Mumbai',
+        otpCode: '592314',
+        status: 'USED',
+        issuedBy: 'ADMIN',
+        createdAt: '2026-01-13T09:30:00Z',
+        expiresAt: '2026-01-13T10:30:00Z',
+        verifiedAt: '2026-01-13T09:40:00Z',
+        usedAt: '2026-01-13T09:45:00Z',
+      },
+      {
+        id: 'otp-demo-03',
+        role: 'AGENT',
+        email: 'mandate@gulfscrapbrokers.com',
+        name: 'Tariq Mansoor',
+        companyName: 'Gulf Commodities Mandate & Brokerage',
+        phone: '+971 501234567',
+        country: 'UAE',
+        city: 'Dubai',
+        otpCode: '736182',
+        status: 'USED',
+        issuedBy: 'ADMIN',
+        createdAt: '2026-01-14T11:00:00Z',
+        expiresAt: '2026-01-14T12:00:00Z',
+        verifiedAt: '2026-01-14T11:15:00Z',
+        usedAt: '2026-01-14T11:20:00Z',
+      }
+    ];
   }
 
   async syncWithFirestore() {
@@ -128,11 +185,50 @@ class TradingDatabase {
       const remoteDocs = await fetchCollection<TradeDocument>('tradeDocuments');
       this.documents = remoteDocs || [];
 
+      // 7. Sync Registration OTPs
+      const remoteOtps = await fetchCollection<RegistrationOtp>('registrationOtps');
+      if (remoteOtps && remoteOtps.length > 0) {
+        const otpMap = new Map<string, RegistrationOtp>();
+        this.registrationOtps.forEach((o) => otpMap.set(o.id, o));
+        remoteOtps.forEach((o) => otpMap.set(o.id, o));
+        this.registrationOtps = Array.from(otpMap.values());
+      }
+
       this.initialized = true;
       console.log('[Firestore] Database synchronization successfully active.');
     } catch (err) {
       console.warn('[Firestore] Sync notice (running with resilient cache):', err);
     }
+  }
+
+  // Registration OTP CRUD
+  async saveRegistrationOtp(otp: RegistrationOtp): Promise<RegistrationOtp> {
+    const idx = this.registrationOtps.findIndex((o) => o.id === otp.id);
+    if (idx >= 0) {
+      this.registrationOtps[idx] = otp;
+    } else {
+      this.registrationOtps.unshift(otp);
+    }
+    await saveDocument('registrationOtps', otp);
+    return otp;
+  }
+
+  async findRegistrationOtp(email: string, otpCode: string): Promise<RegistrationOtp | null> {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanOtp = (otpCode || '').trim();
+    if (!cleanEmail || !cleanOtp) return null;
+
+    const found = this.registrationOtps.find(
+      (o) => o.email.toLowerCase() === cleanEmail && o.otpCode === cleanOtp
+    );
+    return found || null;
+  }
+
+  async findRegistrationOtpById(id: string): Promise<RegistrationOtp | null> {
+    const cleanId = (id || '').trim();
+    if (!cleanId) return null;
+    const found = this.registrationOtps.find((o) => o.id === cleanId);
+    return found || null;
   }
 
   // Find user by identifier (email, username, name, companyName, or ID)

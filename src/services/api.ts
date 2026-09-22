@@ -50,6 +50,87 @@ export const api = {
     return handleResponse<{ token: string; user: any }>(res);
   },
 
+  // Registration OTP Verification Flow
+  async requestRegistrationOtp(payload: {
+    role: string;
+    email: string;
+    name: string;
+    companyName: string;
+    phone?: string;
+    country?: string;
+    city?: string;
+  }) {
+    const res = await fetch(`${API_BASE}/auth/request-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<{
+      success: boolean;
+      message: string;
+      otpId: string;
+      previewOtp?: string;
+      email: string;
+      role: string;
+      companyName: string;
+      expiresAt: string;
+    }>(res);
+  },
+
+  async verifyRegistrationOtp(payload: { email: string; otp: string }) {
+    const res = await fetch(`${API_BASE}/auth/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<{
+      success: boolean;
+      message: string;
+      verificationToken: string;
+      role: string;
+      name: string;
+      companyName: string;
+      email: string;
+      phone?: string;
+      country?: string;
+      city?: string;
+    }>(res);
+  },
+
+  // Admin Registration OTP Management
+  async getAdminRegistrationOtps() {
+    const res = await fetch(`${API_BASE}/admin/registration-otps`, {
+      headers: getAuthHeader(),
+    });
+    return handleResponse<any[]>(res);
+  },
+
+  async issueAdminRegistrationOtp(payload: {
+    role: string;
+    email: string;
+    name: string;
+    companyName: string;
+    phone?: string;
+    country?: string;
+    city?: string;
+  }) {
+    const res = await fetch(`${API_BASE}/admin/issue-otp`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<{ success: boolean; message: string; otp: any }>(res);
+  },
+
+  async resendAdminRegistrationOtp(otpId: string) {
+    const res = await fetch(`${API_BASE}/admin/resend-otp`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify({ otpId }),
+    });
+    return handleResponse<{ success: boolean; message: string; otp: any }>(res);
+  },
+
   async resetPassword(data: { usernameOrEmail: string; newPassword: string; role?: string }) {
     const res = await fetch(`${API_BASE}/auth/reset-password`, {
       method: 'POST',

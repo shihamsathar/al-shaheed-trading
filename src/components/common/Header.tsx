@@ -40,6 +40,14 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
+  // Desk switcher tab is strictly and exclusively for Admin in the Admin Dashboard.
+  // Must NEVER appear on Supplier Dashboard, Buyer Dashboard, or Agent Dashboard.
+  const isAdminDashboard =
+    role === 'ADMIN' &&
+    user?.role === 'ADMIN' &&
+    Boolean(activeViewTitle) &&
+    activeViewTitle.startsWith('admin');
+
   // Live Real-Time Global Commodity & Freight Ticker Benchmarks
   const tickerItems = [
     { label: 'HMS 1/2 (80:20) CFR Nhava Sheva', price: '$395/MT', change: '+1.8%', isUp: true },
@@ -198,8 +206,8 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
             )}
           </div>
 
-          {/* Quick Role Switcher Bar in Header - ONLY visible in ADMIN Dashboard */}
-          {role === 'ADMIN' ? (
+          {/* Quick Role Switcher Bar in Header - STRICTLY ONLY for Admin Dashboard. Never on Supplier, Buyer, or Agent */}
+          {isAdminDashboard && (
             <div id="admin-desk-switcher-bar" className="hidden lg:flex items-center bg-slate-900/90 border border-emerald-900/40 rounded-xl p-1 gap-1 shadow-xs">
               <span className="text-[10px] uppercase font-bold text-slate-400 px-2 tracking-wider">Desk:</span>
               {[
@@ -243,16 +251,6 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
                 <span>🎲</span>
                 <span className="hidden xl:inline">Random</span>
               </button>
-            </div>
-          ) : (
-            /* For Non-Admins: Clear Direct Connection to Admin Desk Badge */
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-emerald-900/40 text-xs shadow-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-slate-400 text-[11px] font-medium">Direct Link:</span>
-              <span className="text-emerald-300 font-bold text-[11px] flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                Al Shaheed Admin Central Desk
-              </span>
             </div>
           )}
 
@@ -307,8 +305,8 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
                   </div>
                 </div>
 
-                {/* Instant Role Switcher Section inside Dropdown - ONLY for ADMIN */}
-                {role === 'ADMIN' && (
+                {/* Instant Role Switcher Section inside Dropdown - STRICTLY for Admin Dashboard */}
+                {isAdminDashboard && (
                   <div className="border-t border-slate-800 my-2 pt-2">
                     <div className="px-3 py-1 text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
                       <span>Admin Desk Switcher</span>

@@ -15,6 +15,7 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { api } from '../../services/api';
 import { Logo } from '../common/Logo';
 import {
   User as UserIcon,
@@ -35,6 +36,14 @@ import {
   Factory,
   Building,
   Briefcase,
+  ShieldCheck,
+  ShieldAlert,
+  Send,
+  Sparkles,
+  Clock,
+  Check,
+  Copy,
+  ArrowRight,
 } from 'lucide-react';
 import { UserRole } from '../../types';
 
@@ -56,6 +65,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
 
   // --- REGISTER STATE (SUPPLIER, BUYER, AGENT) ---
   const [regRole, setRegRole] = useState<'SUPPLIER' | 'BUYER' | 'AGENT'>('SUPPLIER');
+  // Two-step flow: Step 1 = Admin OTP Verification, Step 2 = Create Account & Password
+  const [regStep, setRegStep] = useState<1 | 2>(1);
   const [regUsername, setRegUsername] = useState('');
   const [regName, setRegName] = useState('');
   const [regCompanyName, setRegCompanyName] = useState('');
@@ -65,6 +76,15 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
   const [regPhone, setRegPhone] = useState('');
   const [regCountry, setRegCountry] = useState('Qatar');
   const [showRegPassword, setShowRegPassword] = useState(false);
+
+  // OTP Verification specific state
+  const [regOtpCode, setRegOtpCode] = useState('');
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [otpPreview, setOtpPreview] = useState<string | null>(null);
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [isRequestingOtp, setIsRequestingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   // --- FORGOT PASSWORD STATE ---
   const [resetIdentifier, setResetIdentifier] = useState('');
@@ -82,6 +102,13 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
     setMode(newMode);
     setError(null);
     setSuccessMsg(null);
+    if (newMode === 'register') {
+      setRegStep(1);
+      setRegOtpCode('');
+      setOtpRequested(false);
+      setOtpPreview(null);
+      setVerificationToken(null);
+    }
   };
 
   // --- SUBMIT LOGIN ---
@@ -114,11 +141,106 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
     }
   };
 
-  // --- SUBMIT REGISTER (SUPPLIER, BUYER, AGENT) ---
+  // --- STEP 1: REQUEST ADMIN OTP ---
+  const handleRequestAdminOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setError(null);
+    setSuccessMsg(null);
+
+    const cleanEmail = regEmail.trim();
+    const cleanName = regName.trim();
+    const cleanCompany = regCompanyName.trim();
+
+    if (!cleanName) {
+      setError('Please enter your full contact name.');
+      return;
+    }
+    if (!cleanCompany) {
+      setError('Please enter your company or scrap yard firm name.');
+      return;
+    }
+    if (!cleanEmail) {
+      setError('Please enter your business email address for Admin verification.');
+      return;
+    }
+
+    setIsRequestingOtp(true);
+    try {
+      const res = await api.requestRegistrationOtp({
+        role: regRole,
+        email: cleanEmail,
+        name: cleanName,
+        companyName: cleanCompany,
+        phone: regPhone.trim(),
+        country: regCountry.trim() || 'Qatar',
+        city: 'Doha',
+      });
+      setOtpRequested(true);
+      if (res.previewOtp) {
+        setOtpPreview(res.previewOtp);
+      }
+      setSuccessMsg(`Official Admin OTP verification code dispatched to ${cleanEmail}. Please enter the 6-digit code below.`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to dispatch Admin OTP verification code.');
+    } finally {
+      setIsRequestingOtp(false);
+    }
+  };
+
+  // --- STEP 1: VERIFY ADMIN OTP ---
+  const handleVerifyAdminOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMsg(null);
+
+    const cleanOtp = regOtpCode.trim();
+    const cleanEmail = regEmail.trim();
+
+    if (!cleanEmail) {
+      setError('Please enter your email address.');
+      return;
+    }
+    if (!cleanOtp) {
+      setError('Please enter the 6-digit Admin verification OTP code.');
+      return;
+    }
+    if (cleanOtp.length !== 6) {
+      setError('Admin verification OTP code must be exactly 6 digits.');
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    try {
+      const res = await api.verifyRegistrationOtp({
+        email: cleanEmail,
+        otp: cleanOtp,
+      });
+      setVerificationToken(res.verificationToken);
+      setRegStep(2);
+      // Auto-suggest a default username from email if not already filled
+      if (!regUsername) {
+        const cleanSuggested = cleanEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+        setRegUsername(cleanSuggested);
+      }
+      setSuccessMsg('Admin OTP pre-verification approved! You can now choose your user name and password to create your account.');
+    } catch (err: any) {
+      setError(err.message || 'Invalid or expired Admin OTP verification code. Please check the code or request a new one.');
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
+  // --- STEP 2: CREATE VERIFIED ACCOUNT ---
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
+
+    if (regStep !== 2 || !verificationToken) {
+      setError('Admin OTP verification is required before creating an account. Please complete Step 1 first.');
+      setRegStep(1);
+      return;
+    }
 
     const cleanUsername = regUsername.trim();
     const cleanName = regName.trim();
@@ -126,19 +248,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
     const cleanEmail = regEmail.trim();
 
     if (!cleanUsername) {
-      setError('Please choose a user name for your login.');
-      return;
-    }
-    if (!cleanName) {
-      setError('Please enter your full name or contact person.');
-      return;
-    }
-    if (!cleanCompany) {
-      setError('Please enter your company or business firm name.');
-      return;
-    }
-    if (!cleanEmail) {
-      setError('Please enter your email address.');
+      setError('Please choose a user name for your account login.');
       return;
     }
     if (!regPassword) {
@@ -166,6 +276,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
         phone: regPhone.trim(),
         country: regCountry.trim() || 'Qatar',
         commodityCategories: ['Metal Scrap', 'Industrial Recyclables & Equipment'],
+        verificationToken,
+        otp: regOtpCode.trim(),
       });
       if (onSuccess) {
         onSuccess();
@@ -384,15 +496,15 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
           )}
 
           {/* ========================================================================= */}
-          {/* MODE 2: REGISTER (SUPPLIER, BUYER, AGENT)                                */}
+          {/* MODE 2: REGISTER (SUPPLIER, BUYER, AGENT) WITH ADMIN OTP VERIFICATION     */}
           {/* ========================================================================= */}
           {mode === 'register' && (
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-lg font-black text-white tracking-wide">Create Trading Account</h2>
+                  <h2 className="text-lg font-black text-white tracking-wide">Institutional Account Registration</h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Register for your own dedicated portal login &amp; password
+                    Admin verification pre-approval required before creating account credentials
                   </p>
                 </div>
                 <button
@@ -401,299 +513,514 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
                   className="text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1 transition-colors cursor-pointer py-1 px-2 rounded-lg hover:bg-slate-800/50"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Back</span>
+                  <span>Back to Login</span>
                 </button>
               </div>
 
-              {/* Role Selection Tabs */}
-              <div className="mb-5">
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                  Select Your Account Role
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {/* Supplier */}
-                  <button
-                    id="register-role-supplier"
-                    type="button"
-                    onClick={() => setRegRole('SUPPLIER')}
-                    className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer text-center ${
-                      regRole === 'SUPPLIER'
-                        ? 'bg-amber-950/60 border-amber-500 text-amber-200 shadow-md shadow-amber-950/50'
-                        : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+              {/* Two-Step Verification Flow Indicator */}
+              <div className="mb-5 p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Step 1 Indicator */}
+                  <div
+                    className={`flex items-center gap-2.5 p-2 rounded-lg transition-all ${
+                      regStep === 1
+                        ? 'bg-emerald-950/40 border border-emerald-500/40 text-emerald-300'
+                        : 'bg-emerald-950/20 border border-emerald-800/30 text-emerald-400'
                     }`}
                   >
-                    <Factory className={`w-5 h-5 ${regRole === 'SUPPLIER' ? 'text-amber-400' : 'text-slate-500'}`} />
-                    <span className="text-xs font-black">Supplier</span>
-                    <span className="text-[10px] text-slate-400 leading-tight hidden sm:inline">Scrap Seller / Yard</span>
-                  </button>
+                    <div
+                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                        regStep === 2
+                          ? 'bg-emerald-500 text-slate-950'
+                          : 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40'
+                      }`}
+                    >
+                      {regStep === 2 ? <Check className="w-3.5 h-3.5" /> : '1'}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-black uppercase tracking-wider leading-none">
+                        Step 1: Admin OTP
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        {regStep === 2 ? 'Verified by Admin' : 'Central Desk Verification'}
+                      </p>
+                    </div>
+                  </div>
 
-                  {/* Buyer */}
-                  <button
-                    id="register-role-buyer"
-                    type="button"
-                    onClick={() => setRegRole('BUYER')}
-                    className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer text-center ${
-                      regRole === 'BUYER'
-                        ? 'bg-blue-950/60 border-blue-500 text-blue-200 shadow-md shadow-blue-950/50'
-                        : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                  {/* Step 2 Indicator */}
+                  <div
+                    className={`flex items-center gap-2.5 p-2 rounded-lg transition-all ${
+                      regStep === 2
+                        ? 'bg-emerald-950/40 border border-emerald-500/40 text-emerald-300'
+                        : 'bg-slate-900/40 border border-slate-800 text-slate-500'
                     }`}
                   >
-                    <Building className={`w-5 h-5 ${regRole === 'BUYER' ? 'text-blue-400' : 'text-slate-500'}`} />
-                    <span className="text-xs font-black">Buyer</span>
-                    <span className="text-[10px] text-slate-400 leading-tight hidden sm:inline">Mill / Smelter</span>
-                  </button>
-
-                  {/* Agent */}
-                  <button
-                    id="register-role-agent"
-                    type="button"
-                    onClick={() => setRegRole('AGENT')}
-                    className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer text-center ${
-                      regRole === 'AGENT'
-                        ? 'bg-emerald-950/60 border-emerald-500 text-emerald-200 shadow-md shadow-emerald-950/50'
-                        : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-                    }`}
-                  >
-                    <Briefcase className={`w-5 h-5 ${regRole === 'AGENT' ? 'text-emerald-400' : 'text-slate-500'}`} />
-                    <span className="text-xs font-black">Agent</span>
-                    <span className="text-[10px] text-slate-400 leading-tight hidden sm:inline">Broker / Mandate</span>
-                  </button>
+                    <div
+                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                        regStep === 2
+                          ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40'
+                          : 'bg-slate-800 text-slate-500'
+                      }`}
+                    >
+                      2
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-black uppercase tracking-wider leading-none">
+                        Step 2: Credentials
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        {regStep === 2 ? 'Create User & Password' : 'Locked until OTP verified'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
-                {/* User Name & Full Name */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* ========================================================= */}
+              {/* STEP 1: ADMIN OTP DISPATCH & VERIFICATION                 */}
+              {/* ========================================================= */}
+              {regStep === 1 && (
+                <div className="space-y-4">
+                  {/* Role Selection Tabs */}
                   <div>
-                    <label
-                      htmlFor="register-username"
-                      className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
-                    >
-                      User Name <span className="text-rose-400">*</span>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                      1. Select Your Account Role
                     </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                        <UserIcon className="w-3.5 h-3.5" />
-                      </div>
-                      <input
-                        id="register-username"
-                        type="text"
-                        required
-                        disabled={isSubmitting}
-                        value={regUsername}
-                        onChange={(e) => setRegUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ''))}
-                        placeholder="e.g. nasser_yard"
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="register-name"
-                      className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
-                    >
-                      Contact Name <span className="text-rose-400">*</span>
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                        <UserIcon className="w-3.5 h-3.5" />
-                      </div>
-                      <input
-                        id="register-name"
-                        type="text"
-                        required
-                        disabled={isSubmitting}
-                        value={regName}
-                        onChange={(e) => setRegName(e.target.value)}
-                        placeholder="e.g. Nasser Al-Kuwari"
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Company Name & Email */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label
-                      htmlFor="register-company"
-                      className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
-                    >
-                      Company Name <span className="text-rose-400">*</span>
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                        <Building2 className="w-3.5 h-3.5" />
-                      </div>
-                      <input
-                        id="register-company"
-                        type="text"
-                        required
-                        disabled={isSubmitting}
-                        value={regCompanyName}
-                        onChange={(e) => setRegCompanyName(e.target.value)}
-                        placeholder="e.g. Gulf Scrap Yard W.L.L."
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="register-email"
-                      className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
-                    >
-                      Email Address <span className="text-rose-400">*</span>
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                        <Mail className="w-3.5 h-3.5" />
-                      </div>
-                      <input
-                        id="register-email"
-                        type="email"
-                        required
-                        disabled={isSubmitting}
-                        value={regEmail}
-                        onChange={(e) => setRegEmail(e.target.value)}
-                        placeholder="e.g. trader@company.com"
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Password & Confirm Password */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label
-                      htmlFor="register-password"
-                      className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
-                    >
-                      Password <span className="text-rose-400">*</span>
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                        <Lock className="w-3.5 h-3.5" />
-                      </div>
-                      <input
-                        id="register-password"
-                        type={showRegPassword ? 'text' : 'password'}
-                        required
-                        disabled={isSubmitting}
-                        value={regPassword}
-                        onChange={(e) => setRegPassword(e.target.value)}
-                        placeholder="Create Password"
-                        className="w-full pl-9 pr-9 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                      />
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* Supplier */}
                       <button
+                        id="register-role-supplier"
                         type="button"
-                        onClick={() => setShowRegPassword(!showRegPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 focus:outline-none cursor-pointer"
-                        aria-label={showRegPassword ? 'Hide password' : 'Show password'}
+                        onClick={() => setRegRole('SUPPLIER')}
+                        className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer text-center ${
+                          regRole === 'SUPPLIER'
+                            ? 'bg-amber-950/60 border-amber-500 text-amber-200 shadow-md shadow-amber-950/50'
+                            : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                        }`}
                       >
-                        {showRegPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        <Factory className={`w-5 h-5 ${regRole === 'SUPPLIER' ? 'text-amber-400' : 'text-slate-500'}`} />
+                        <span className="text-xs font-black">Supplier</span>
+                        <span className="text-[10px] text-slate-400 leading-tight hidden sm:inline">Scrap Seller / Yard</span>
+                      </button>
+
+                      {/* Buyer */}
+                      <button
+                        id="register-role-buyer"
+                        type="button"
+                        onClick={() => setRegRole('BUYER')}
+                        className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer text-center ${
+                          regRole === 'BUYER'
+                            ? 'bg-blue-950/60 border-blue-500 text-blue-200 shadow-md shadow-blue-950/50'
+                            : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                        }`}
+                      >
+                        <Building className={`w-5 h-5 ${regRole === 'BUYER' ? 'text-blue-400' : 'text-slate-500'}`} />
+                        <span className="text-xs font-black">Buyer</span>
+                        <span className="text-[10px] text-slate-400 leading-tight hidden sm:inline">Mill / Smelter</span>
+                      </button>
+
+                      {/* Agent */}
+                      <button
+                        id="register-role-agent"
+                        type="button"
+                        onClick={() => setRegRole('AGENT')}
+                        className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer text-center ${
+                          regRole === 'AGENT'
+                            ? 'bg-emerald-950/60 border-emerald-500 text-emerald-200 shadow-md shadow-emerald-950/50'
+                            : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                        }`}
+                      >
+                        <Briefcase className={`w-5 h-5 ${regRole === 'AGENT' ? 'text-emerald-400' : 'text-slate-500'}`} />
+                        <span className="text-xs font-black">Agent</span>
+                        <span className="text-[10px] text-slate-400 leading-tight hidden sm:inline">Broker / Mandate</span>
                       </button>
                     </div>
                   </div>
 
-                  <div>
-                    <label
-                      htmlFor="register-confirm-password"
-                      className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
-                    >
-                      Confirm Password <span className="text-rose-400">*</span>
+                  {/* Partner Information Inputs */}
+                  <div className="space-y-3">
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                      2. Company &amp; Contact Details
                     </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                        <Lock className="w-3.5 h-3.5" />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label
+                          htmlFor="register-name"
+                          className="block text-[11px] font-semibold text-slate-400 mb-1"
+                        >
+                          Contact Person Name <span className="text-rose-400">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                            <UserIcon className="w-3.5 h-3.5" />
+                          </div>
+                          <input
+                            id="register-name"
+                            type="text"
+                            required
+                            disabled={isRequestingOtp || isVerifyingOtp}
+                            value={regName}
+                            onChange={(e) => setRegName(e.target.value)}
+                            placeholder="e.g. Nasser Al-Kuwari"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                          />
+                        </div>
                       </div>
-                      <input
-                        id="register-confirm-password"
-                        type={showRegPassword ? 'text' : 'password'}
-                        required
-                        disabled={isSubmitting}
-                        value={regConfirmPassword}
-                        onChange={(e) => setRegConfirmPassword(e.target.value)}
-                        placeholder="Re-enter Password"
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                      />
+
+                      <div>
+                        <label
+                          htmlFor="register-company"
+                          className="block text-[11px] font-semibold text-slate-400 mb-1"
+                        >
+                          Company / Scrap Firm Name <span className="text-rose-400">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                            <Building2 className="w-3.5 h-3.5" />
+                          </div>
+                          <input
+                            id="register-company"
+                            type="text"
+                            required
+                            disabled={isRequestingOtp || isVerifyingOtp}
+                            value={regCompanyName}
+                            onChange={(e) => setRegCompanyName(e.target.value)}
+                            placeholder="e.g. Gulf Scrap Yard W.L.L."
+                            className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label
+                          htmlFor="register-email"
+                          className="block text-[11px] font-semibold text-slate-400 mb-1"
+                        >
+                          Email Address (for Admin OTP) <span className="text-rose-400">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                            <Mail className="w-3.5 h-3.5" />
+                          </div>
+                          <input
+                            id="register-email"
+                            type="email"
+                            required
+                            disabled={isRequestingOtp || isVerifyingOtp}
+                            value={regEmail}
+                            onChange={(e) => setRegEmail(e.target.value)}
+                            placeholder="e.g. partner@firm.com"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="register-phone"
+                          className="block text-[11px] font-semibold text-slate-400 mb-1"
+                        >
+                          Phone Number
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                            <Phone className="w-3.5 h-3.5" />
+                          </div>
+                          <input
+                            id="register-phone"
+                            type="text"
+                            disabled={isRequestingOtp || isVerifyingOtp}
+                            value={regPhone}
+                            onChange={(e) => setRegPhone(e.target.value)}
+                            placeholder="e.g. +974 55123456"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Country & Phone */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label
-                      htmlFor="register-country"
-                      className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
-                    >
-                      Country
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                        <Globe className="w-3.5 h-3.5" />
+                  {/* Admin OTP Verification Panel */}
+                  <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3.5">
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-2 rounded-lg bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 shrink-0 mt-0.5">
+                        <ShieldCheck className="w-4 h-4" />
                       </div>
-                      <input
-                        id="register-country"
-                        type="text"
-                        disabled={isSubmitting}
-                        value={regCountry}
-                        onChange={(e) => setRegCountry(e.target.value)}
-                        placeholder="e.g. Qatar, UAE, India"
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="register-phone"
-                      className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
-                    >
-                      Phone Number
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                        <Phone className="w-3.5 h-3.5" />
+                      <div>
+                        <h4 className="text-xs font-black text-white">Admin Pre-Verification Protocol</h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                          Al Shaheed Admin Central Desk issues an official 6-digit OTP verification code to approve your {regRole.toLowerCase()} registration.
+                        </p>
                       </div>
-                      <input
-                        id="register-phone"
-                        type="text"
-                        disabled={isSubmitting}
-                        value={regPhone}
-                        onChange={(e) => setRegPhone(e.target.value)}
-                        placeholder="e.g. +974 55123456"
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                      />
                     </div>
-                  </div>
-                </div>
 
-                {/* Submit Register Button */}
-                <div className="pt-2">
-                  <button
-                    id="register-submit-button"
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 hover:shadow-emerald-900/80 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                        <span>Creating Account...</span>
-                      </>
+                    {!otpRequested ? (
+                      <div className="space-y-2 pt-1">
+                        <button
+                          id="request-admin-otp-button"
+                          type="button"
+                          disabled={isRequestingOtp || !regEmail || !regName || !regCompanyName}
+                          onClick={() => handleRequestAdminOtp()}
+                          className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs tracking-wide flex items-center justify-center gap-2 shadow-md shadow-emerald-950/50 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isRequestingOtp ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                              <span>Requesting Admin OTP Code...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-3.5 h-3.5 text-slate-950" />
+                              <span>Request Admin OTP Verification Code</span>
+                            </>
+                          )}
+                        </button>
+                        <div className="text-center">
+                          <button
+                            type="button"
+                            onClick={() => setOtpRequested(true)}
+                            className="text-[11px] text-slate-400 hover:text-emerald-300 underline cursor-pointer"
+                          >
+                            Already received an Admin OTP code? Click here to enter code
+                          </button>
+                        </div>
+                      </div>
                     ) : (
-                      <>
-                        <UserPlus className="w-4 h-4 text-slate-950" />
-                        <span>Create {regRole} Account &amp; Sign In</span>
-                      </>
+                      <form onSubmit={handleVerifyAdminOtp} className="space-y-3 pt-1">
+                        {/* Live preview banner for easy evaluation */}
+                        {otpPreview && (
+                          <div className="p-2.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              <span className="text-emerald-300 font-medium">
+                                Admin Dispatched Code: <strong className="font-mono text-white tracking-wider text-sm">{otpPreview}</strong>
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRegOtpCode(otpPreview);
+                                setCopiedCode(true);
+                                setTimeout(() => setCopiedCode(false), 2000);
+                              }}
+                              className="px-2 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                              {copiedCode ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                              <span>{copiedCode ? 'Filled' : 'Auto-Fill'}</span>
+                            </button>
+                          </div>
+                        )}
+
+                        <div>
+                          <label
+                            htmlFor="register-otp-code"
+                            className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
+                          >
+                            Enter 6-Digit Admin OTP Code <span className="text-rose-400">*</span>
+                          </label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                              <KeyRound className="w-4 h-4 text-emerald-400" />
+                            </div>
+                            <input
+                              id="register-otp-code"
+                              type="text"
+                              maxLength={6}
+                              required
+                              disabled={isVerifyingOtp}
+                              value={regOtpCode}
+                              onChange={(e) => setRegOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                              placeholder="000000"
+                              className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-emerald-500/50 rounded-xl text-center font-mono text-lg font-black tracking-[0.4em] text-emerald-300 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            id="verify-admin-otp-button"
+                            type="submit"
+                            disabled={isVerifyingOtp || regOtpCode.trim().length !== 6}
+                            className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs tracking-wide flex items-center justify-center gap-2 shadow-md shadow-emerald-950/50 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isVerifyingOtp ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                                <span>Verifying Admin OTP...</span>
+                              </>
+                            ) : (
+                              <>
+                                <ShieldCheck className="w-4 h-4 text-slate-950" />
+                                <span>Verify Admin OTP Code</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isRequestingOtp}
+                            onClick={() => handleRequestAdminOtp()}
+                            className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors cursor-pointer"
+                            title="Resend Code"
+                          >
+                            Resend
+                          </button>
+                        </div>
+                      </form>
                     )}
-                  </button>
+                  </div>
                 </div>
-              </form>
+              )}
+
+              {/* ========================================================= */}
+              {/* STEP 2: CREATE VERIFIED ACCOUNT CREDENTIALS (PASSWORD)    */}
+              {/* ========================================================= */}
+              {regStep === 2 && (
+                <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                  {/* Verified Confirmation Banner */}
+                  <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span className="text-xs font-black text-white">Admin Pre-Verification Approved</span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black border border-emerald-500/30">
+                        {regRole} Authorized
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      Company: <strong>{regCompanyName}</strong> ({regName}) &bull; Email: <strong>{regEmail}</strong>
+                    </p>
+                  </div>
+
+                  {/* Username & Password Form */}
+                  <div className="space-y-3">
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                      Create Your Login Credentials
+                    </label>
+
+                    {/* User Name */}
+                    <div>
+                      <label
+                        htmlFor="register-username"
+                        className="block text-xs font-semibold text-slate-300 mb-1"
+                      >
+                        User Name <span className="text-rose-400">*</span>
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                          <UserIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <input
+                          id="register-username"
+                          type="text"
+                          required
+                          disabled={isSubmitting}
+                          value={regUsername}
+                          onChange={(e) => setRegUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ''))}
+                          placeholder="e.g. nasser_yard"
+                          className="w-full pl-9 pr-3 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        You will use this user name to log in to your {regRole.toLowerCase()} dashboard anytime.
+                      </p>
+                    </div>
+
+                    {/* Password & Confirm Password */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label
+                          htmlFor="register-password"
+                          className="block text-xs font-semibold text-slate-300 mb-1"
+                        >
+                          Password <span className="text-rose-400">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                            <Lock className="w-3.5 h-3.5" />
+                          </div>
+                          <input
+                            id="register-password"
+                            type={showRegPassword ? 'text' : 'password'}
+                            required
+                            disabled={isSubmitting}
+                            value={regPassword}
+                            onChange={(e) => setRegPassword(e.target.value)}
+                            placeholder="Create Password"
+                            className="w-full pl-9 pr-9 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowRegPassword(!showRegPassword)}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 focus:outline-none cursor-pointer"
+                            aria-label={showRegPassword ? 'Hide password' : 'Show password'}
+                          >
+                            {showRegPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="register-confirm-password"
+                          className="block text-xs font-semibold text-slate-300 mb-1"
+                        >
+                          Confirm Password <span className="text-rose-400">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                            <Lock className="w-3.5 h-3.5" />
+                          </div>
+                          <input
+                            id="register-confirm-password"
+                            type={showRegPassword ? 'text' : 'password'}
+                            required
+                            disabled={isSubmitting}
+                            value={regConfirmPassword}
+                            onChange={(e) => setRegConfirmPassword(e.target.value)}
+                            placeholder="Re-enter Password"
+                            className="w-full pl-9 pr-3 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submit Register Button */}
+                  <div className="pt-2 space-y-2">
+                    <button
+                      id="register-submit-button"
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 hover:shadow-emerald-900/80 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                          <span>Creating Verified Account...</span>
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="w-4 h-4 text-slate-950" />
+                          <span>Create Verified {regRole} Account &amp; Sign In</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRegStep(1)}
+                      className="w-full py-2 text-center text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                    >
+                      &larr; Back to verification details
+                    </button>
+                  </div>
+                </form>
+              )}
 
               {/* Back to Login link */}
               <div className="mt-4 text-center">

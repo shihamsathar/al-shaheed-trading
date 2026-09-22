@@ -8,7 +8,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { db } from './server/db.js';
 import { analyzeTradeMatchWithAI, normalizeCommodityWithAI } from './server/gemini.js';
-import { User, ScrapListing, BuyerRequirement, Transaction, UserRole, AgentAssignment, TradeDocument, BuyerInterest } from './src/types.js';
+import { User, ScrapListing, BuyerRequirement, Transaction, UserRole, AgentAssignment, TradeDocument, BuyerInterest, RegistrationOtp } from './src/types.js';
 
 async function startServer() {
   const app = express();
@@ -248,6 +248,150 @@ async function startServer() {
     });
   });
 
+  // --- REGISTRATION OTP VERIFICATION (ADMIN-AUTHORIZED REGISTRATION) ---
+  // Step 1: Partner submits registration authorization request -> Admin Central Desk issues OTP code
+  app.post('/api/auth/request-otp', async (req, res) => {
+    const { role, email, name, companyName, phone, country, city } = req.body;
+
+    if (!role || !email || !name || !companyName) {
+      return res.status(400).json({ error: 'Role, Email, Contact Name, and Company Name are required to request an Admin OTP.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanRole = role.toUpperCase();
+
+    if (!['SUPPLIER', 'BUYER', 'AGENT'].includes(cleanRole)) {
+      return res.status(400).json({ error: 'Only Supplier, Buyer, or Agent accounts can be registered through this portal.' });
+    }
+
+    // Check if account already exists
+    const existing = await db.findUser(cleanEmail);
+    if (existing) {
+      return res.status(400).json({
+        error: `An account with email "${cleanEmail}" is already registered. Please sign in or use Forgot Password.`,
+      });
+    }
+
+    // Generate cryptographic-grade 6-digit numeric OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30 minutes validity
+
+    const newOtpRecord: RegistrationOtp = {
+      id: `otp-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`,
+      role: cleanRole as 'SUPPLIER' | 'BUYER' | 'AGENT',
+      email: cleanEmail,
+      name: name.trim(),
+      companyName: companyName.trim(),
+      phone: phone ? phone.trim() : '',
+      country: country ? country.trim() : 'Qatar',
+      city: city ? city.trim() : 'Doha',
+      otpCode,
+      status: 'PENDING',
+      issuedBy: 'ADMIN',
+      createdAt: new Date().toISOString(),
+      expiresAt,
+    };
+
+    await db.saveRegistrationOtp(newOtpRecord);
+
+    // Notify Admin Desk
+    db.addNotification({
+      recipientId: 'ADMIN_ALL',
+      recipientRole: 'ADMIN',
+      title: `Registration OTP Issued: ${cleanRole}`,
+      message: `Admin verification OTP [${otpCode}] issued for ${name.trim()} (${companyName.trim()}) [${cleanEmail}]. Valid for 30 minutes.`,
+      type: 'WARNING',
+      priority: 'HIGH',
+      linkUrl: '/admin/counterparties',
+    });
+
+    db.addAuditLog({
+      userId: 'usr-admin-01',
+      userName: 'Al Shaheed Admin Central Desk',
+      userRole: 'ADMIN',
+      action: 'REGISTRATION_OTP_ISSUED',
+      entity: 'RegistrationOtp',
+      entityId: newOtpRecord.id,
+      newValue: `Role: ${cleanRole}, Company: ${companyName.trim()}, OTP Code: ${otpCode}, Email: ${cleanEmail}`,
+      ipAddress: req.ip || '127.0.0.1',
+    });
+
+    res.json({
+      success: true,
+      message: `Official Admin OTP verification code has been dispatched by Al Shaheed Central Desk to ${cleanEmail}.`,
+      otpId: newOtpRecord.id,
+      previewOtp: otpCode, // For testing & preview simulation
+      email: cleanEmail,
+      role: cleanRole,
+      companyName: companyName.trim(),
+      expiresAt,
+    });
+  });
+
+  // Step 2: Applicant verifies the OTP dispatched by the Admin
+  app.post('/api/auth/verify-otp', async (req, res) => {
+    const { email, otp } = req.body;
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanOtp = (otp || '').trim();
+
+    if (!cleanEmail || !cleanOtp) {
+      return res.status(400).json({ error: 'Both email address and 6-digit Admin OTP code are required.' });
+    }
+
+    // Match OTP record
+    const otpRecord = await db.findRegistrationOtp(cleanEmail, cleanOtp);
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        error: 'Invalid OTP verification code. Please enter the exact 6-digit code issued by Al Shaheed Admin Desk.',
+      });
+    }
+
+    if (otpRecord.status === 'USED') {
+      return res.status(400).json({
+        error: 'This Admin verification OTP has already been used to create an account. Please request a new Admin OTP.',
+      });
+    }
+
+    if (new Date(otpRecord.expiresAt).getTime() < Date.now()) {
+      otpRecord.status = 'EXPIRED';
+      await db.saveRegistrationOtp(otpRecord);
+      return res.status(400).json({
+        error: 'This Admin OTP verification code has expired. Please request a new verification code.',
+      });
+    }
+
+    // Mark as verified
+    otpRecord.status = 'VERIFIED';
+    otpRecord.verifiedAt = new Date().toISOString();
+    await db.saveRegistrationOtp(otpRecord);
+
+    db.addAuditLog({
+      userId: otpRecord.id,
+      userName: otpRecord.name,
+      userRole: otpRecord.role as UserRole,
+      action: 'REGISTRATION_OTP_VERIFIED',
+      entity: 'RegistrationOtp',
+      entityId: otpRecord.id,
+      newValue: `OTP ${cleanOtp} successfully verified for ${otpRecord.email} (${otpRecord.companyName})`,
+      ipAddress: req.ip || '127.0.0.1',
+    });
+
+    res.json({
+      success: true,
+      message: 'Admin OTP verification successful! You can now choose your user name and password to create your account.',
+      verificationToken: otpRecord.id,
+      role: otpRecord.role,
+      name: otpRecord.name,
+      companyName: otpRecord.companyName,
+      email: otpRecord.email,
+      phone: otpRecord.phone,
+      country: otpRecord.country,
+      city: otpRecord.city,
+    });
+  });
+
+  // Step 3: Create Verified Account
   app.post('/api/auth/register', async (req, res) => {
     const {
       role,
@@ -268,6 +412,8 @@ async function startServer() {
       tradingRegion,
       languages,
       experienceYears,
+      otp,
+      verificationToken,
     } = req.body;
 
     if (!email || !name || !role) {
@@ -276,6 +422,33 @@ async function startServer() {
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanUsername = (username || email.split('@')[0]).trim().toLowerCase();
+
+    // Enforce Admin OTP verification for Supplier, Buyer, and Agent
+    let verifiedOtp: RegistrationOtp | null = null;
+    if (verificationToken) {
+      verifiedOtp = await db.findRegistrationOtpById(verificationToken);
+    }
+    if (!verifiedOtp && otp) {
+      verifiedOtp = await db.findRegistrationOtp(cleanEmail, otp);
+    }
+
+    if (!verifiedOtp) {
+      return res.status(403).json({
+        error: 'Admin OTP verification is required before creating an account. Please complete Admin OTP verification first.',
+      });
+    }
+
+    if (verifiedOtp.status === 'USED') {
+      return res.status(400).json({
+        error: 'This Admin OTP verification code has already been used. Please request a new Admin OTP.',
+      });
+    }
+
+    if (new Date(verifiedOtp.expiresAt).getTime() < Date.now()) {
+      return res.status(400).json({
+        error: 'This Admin OTP verification code has expired. Please request a new Admin OTP.',
+      });
+    }
 
     const existingEmail = await db.findUser(cleanEmail);
     if (existingEmail) {
@@ -312,6 +485,11 @@ async function startServer() {
       lastLogin: new Date().toISOString(),
     };
 
+    // Mark OTP as used
+    verifiedOtp.status = 'USED';
+    verifiedOtp.usedAt = new Date().toISOString();
+    await db.saveRegistrationOtp(verifiedOtp);
+
     // Save to memory and Firestore cloud database
     await db.saveUser(newUser);
 
@@ -319,21 +497,21 @@ async function startServer() {
     db.addNotification({
       recipientId: 'ADMIN_ALL',
       recipientRole: 'ADMIN',
-      title: `New ${role} Registered`,
-      message: `${name} (${companyName || 'Individual'}) registered from ${country || 'Qatar'} with username "${cleanUsername}".`,
-      type: 'INFO',
+      title: `New Verified ${role} Account Created`,
+      message: `${name} (${companyName || 'Individual'}) successfully completed Admin OTP verification and created ${role} account with username "${cleanUsername}".`,
+      type: 'SUCCESS',
       linkUrl: `/admin/counterparties`,
-      priority: 'NORMAL',
+      priority: 'HIGH',
     });
 
     db.addAuditLog({
       userId: newUser.id,
       userName: newUser.name,
       userRole: newUser.role,
-      action: 'USER_REGISTERED',
+      action: 'USER_REGISTERED_WITH_ADMIN_OTP',
       entity: 'User',
       entityId: newUser.id,
-      newValue: `Role: ${role}, Username: ${cleanUsername}, Company: ${companyName}`,
+      newValue: `Role: ${role}, Username: ${cleanUsername}, Company: ${companyName}, Verified OTP ID: ${verifiedOtp.id}`,
       ipAddress: req.ip || '127.0.0.1',
     });
 
@@ -383,6 +561,103 @@ async function startServer() {
     });
 
     res.json({ success: true, message: 'Admin credentials updated successfully.', user: admin });
+  });
+
+  // --- ADMIN REGISTRATION OTP MANAGEMENT ---
+  // List all issued and requested registration OTPs
+  app.get('/api/admin/registration-otps', requireAuth, requireRole(['ADMIN']), (req, res) => {
+    const list = [...db.registrationOtps].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    res.json(list);
+  });
+
+  // Admin manually generates & issues an authorized OTP to a prospective partner
+  app.post('/api/admin/issue-otp', requireAuth, requireRole(['ADMIN']), async (req, res) => {
+    const { role, email, name, companyName, phone, country, city } = req.body;
+    const adminUser = (req as any).user as User;
+
+    if (!role || !email || !name || !companyName) {
+      return res.status(400).json({ error: 'Role, Email, Contact Name, and Company Name are required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanRole = role.toUpperCase();
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 60 minutes for admin-issued
+
+    const newOtpRecord: RegistrationOtp = {
+      id: `otp-adm-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+      role: cleanRole as 'SUPPLIER' | 'BUYER' | 'AGENT',
+      email: cleanEmail,
+      name: name.trim(),
+      companyName: companyName.trim(),
+      phone: phone ? phone.trim() : '',
+      country: country ? country.trim() : 'Qatar',
+      city: city ? city.trim() : 'Doha',
+      otpCode,
+      status: 'PENDING',
+      issuedBy: adminUser.name || 'ADMIN',
+      createdAt: new Date().toISOString(),
+      expiresAt,
+    };
+
+    await db.saveRegistrationOtp(newOtpRecord);
+
+    db.addAuditLog({
+      userId: adminUser.id,
+      userName: adminUser.name,
+      userRole: 'ADMIN',
+      action: 'ADMIN_MANUALLY_ISSUED_OTP',
+      entity: 'RegistrationOtp',
+      entityId: newOtpRecord.id,
+      newValue: `Admin issued OTP ${otpCode} for ${cleanRole} (${companyName.trim()}) [${cleanEmail}]`,
+      ipAddress: req.ip || '127.0.0.1',
+    });
+
+    res.json({
+      success: true,
+      message: `Admin authorization OTP ${otpCode} successfully issued for ${companyName.trim()} (${cleanRole}).`,
+      otp: newOtpRecord,
+    });
+  });
+
+  // Admin resends or regenerates an OTP code
+  app.post('/api/admin/resend-otp', requireAuth, requireRole(['ADMIN']), async (req, res) => {
+    const { otpId } = req.body;
+    const adminUser = (req as any).user as User;
+
+    const existingOtp = await db.findRegistrationOtpById(otpId);
+    if (!existingOtp) {
+      return res.status(404).json({ error: 'Registration OTP record not found.' });
+    }
+
+    // Refresh code and extend expiration
+    const freshCode = Math.floor(100000 + Math.random() * 900000).toString();
+    existingOtp.otpCode = freshCode;
+    existingOtp.status = 'PENDING';
+    existingOtp.expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    existingOtp.issuedBy = `${adminUser.name || 'ADMIN'} (Re-issued)`;
+
+    await db.saveRegistrationOtp(existingOtp);
+
+    db.addAuditLog({
+      userId: adminUser.id,
+      userName: adminUser.name,
+      userRole: 'ADMIN',
+      action: 'ADMIN_REGENERATED_OTP',
+      entity: 'RegistrationOtp',
+      entityId: existingOtp.id,
+      newValue: `Re-issued fresh OTP ${freshCode} for ${existingOtp.role} (${existingOtp.companyName})`,
+      ipAddress: req.ip || '127.0.0.1',
+    });
+
+    res.json({
+      success: true,
+      message: `Fresh Admin verification OTP code [${freshCode}] generated and dispatched to ${existingOtp.email}.`,
+      otp: existingOtp,
+    });
   });
 
   // Switch demo / role workspace helper

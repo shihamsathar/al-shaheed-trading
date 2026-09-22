@@ -396,3 +396,21 @@ export interface SystemSettings {
   minMatchScoreThreshold: number;
   autoMatchNotification: boolean;
 }
+
+export interface RegistrationOtp {
+  id: string;
+  role: 'SUPPLIER' | 'BUYER' | 'AGENT';
+  email: string;
+  name: string;
+  companyName: string;
+  phone?: string;
+  country?: string;
+  city?: string;
+  otpCode: string;
+  status: 'PENDING' | 'VERIFIED' | 'USED' | 'EXPIRED';
+  issuedBy: string; // 'ADMIN' or 'SYSTEM_ADMIN_DESK'
+  createdAt: string;
+  expiresAt: string;
+  verifiedAt?: string;
+  usedAt?: string;
+}
