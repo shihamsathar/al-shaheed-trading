@@ -759,19 +759,20 @@ async function startServer() {
     }
 
     if (user.role === 'SUPPLIER') {
-      // Supplier sees their own listings with full details (including PENDING_REVIEW)
-      // PLUS ONLY other listings that are APPROVED & PUBLISHED by Admin
+      // Supplier dashboard / supplier desk ONLY shows his uploads, not others
+      const userPhoneDigits = user.phone ? user.phone.replace(/\D/g, '') : '';
       const result = list
-        .filter((l) => l.supplierId === user.id || (l.isPublished === true && l.status === 'AVAILABLE'))
-        .map((l) => {
-          if (l.supplierId === user.id) {
-            return {
-              ...l,
-              pricePerUnit: l.supplierPricePerUnit || l.pricePerUnit,
-            };
-          }
-          return db.sanitizeListingForBuyer(l);
-        });
+        .filter((l) => {
+          const matchId = Boolean(l.supplierId && l.supplierId === user.id);
+          const matchEmail = Boolean(l.supplierEmail && user.email && l.supplierEmail.toLowerCase() === user.email.toLowerCase());
+          const lPhoneDigits = l.supplierPhone ? l.supplierPhone.replace(/\D/g, '') : '';
+          const matchPhone = Boolean(userPhoneDigits.length >= 7 && lPhoneDigits && (lPhoneDigits.includes(userPhoneDigits) || userPhoneDigits.includes(lPhoneDigits)));
+          return matchId || matchEmail || matchPhone;
+        })
+        .map((l) => ({
+          ...l,
+          pricePerUnit: l.supplierPricePerUnit || l.pricePerUnit,
+        }));
       return res.json(result);
     }
 
@@ -808,7 +809,18 @@ async function startServer() {
       return res.json(listing);
     }
 
-    if (user.role === 'SUPPLIER' && listing.supplierId === user.id) {
+    if (user.role === 'SUPPLIER') {
+      const userPhoneDigits = user.phone ? user.phone.replace(/\D/g, '') : '';
+      const lPhoneDigits = listing.supplierPhone ? listing.supplierPhone.replace(/\D/g, '') : '';
+      const matchId = Boolean(listing.supplierId && listing.supplierId === user.id);
+      const matchEmail = Boolean(listing.supplierEmail && user.email && listing.supplierEmail.toLowerCase() === user.email.toLowerCase());
+      const matchPhone = Boolean(userPhoneDigits.length >= 7 && lPhoneDigits && (lPhoneDigits.includes(userPhoneDigits) || userPhoneDigits.includes(lPhoneDigits)));
+      const isOwner = matchId || matchEmail || matchPhone;
+
+      if (!isOwner) {
+        return res.status(403).json({ error: 'Access restricted: Suppliers may only view their own uploads.' });
+      }
+
       return res.json({
         ...listing,
         pricePerUnit: listing.supplierPricePerUnit || listing.pricePerUnit,
@@ -816,7 +828,7 @@ async function startServer() {
     }
 
     // If unapproved/pending review, non-admins cannot access it
-    if (listing.isPublished !== true && listing.supplierId !== user.id) {
+    if (listing.isPublished !== true) {
       return res.status(403).json({ error: 'This listing is pending admin review and publication.' });
     }
 
@@ -1171,8 +1183,17 @@ async function startServer() {
 
   // Admin / Supplier Update Listing
   app.put('/api/listings/:id', requireAuth, requireRole(['ADMIN', 'SUPPLIER']), async (req, res) => {
+    const user = (req as any).user as User;
     const listing = db.listings.find((l) => l.id === req.params.id);
     if (!listing) return res.status(404).json({ error: 'Listing not found.' });
+
+    if (user.role === 'SUPPLIER') {
+      const matchId = Boolean(listing.supplierId && listing.supplierId === user.id);
+      const matchEmail = Boolean(listing.supplierEmail && user.email && listing.supplierEmail.toLowerCase() === user.email.toLowerCase());
+      if (!matchId && !matchEmail) {
+        return res.status(403).json({ error: 'Access restricted: Suppliers may only update their own uploads.' });
+      }
+    }
 
     const allowed = [
       'materialName', 'commodityCategory', 'grade', 'quantity', 'pricePerUnit',
@@ -1207,8 +1228,17 @@ async function startServer() {
 
   // Admin / Supplier Bulk Photos Update for a Listing
   app.patch('/api/listings/:id/photos', requireAuth, requireRole(['ADMIN', 'SUPPLIER']), async (req, res) => {
+    const user = (req as any).user as User;
     const listing = db.listings.find((l) => l.id === req.params.id);
     if (!listing) return res.status(404).json({ error: 'Listing not found.' });
+
+    if (user.role === 'SUPPLIER') {
+      const matchId = Boolean(listing.supplierId && listing.supplierId === user.id);
+      const matchEmail = Boolean(listing.supplierEmail && user.email && listing.supplierEmail.toLowerCase() === user.email.toLowerCase());
+      if (!matchId && !matchEmail) {
+        return res.status(403).json({ error: 'Access restricted: Suppliers may only update photos of their own uploads.' });
+      }
+    }
 
     if (!Array.isArray(req.body.photos)) {
       return res.status(400).json({ error: 'photos must be an array of image strings/URLs.' });
@@ -1242,10 +1272,19 @@ async function startServer() {
 
   // Admin / Supplier Delete Listing
   app.delete('/api/listings/:id', requireAuth, requireRole(['ADMIN', 'SUPPLIER']), async (req, res) => {
+    const user = (req as any).user as User;
     const index = db.listings.findIndex((l) => l.id === req.params.id);
     if (index === -1) return res.status(404).json({ error: 'Listing not found.' });
 
     const removed = db.listings[index];
+    if (user.role === 'SUPPLIER') {
+      const matchId = Boolean(removed.supplierId && removed.supplierId === user.id);
+      const matchEmail = Boolean(removed.supplierEmail && user.email && removed.supplierEmail.toLowerCase() === user.email.toLowerCase());
+      if (!matchId && !matchEmail) {
+        return res.status(403).json({ error: 'Access restricted: Suppliers may only delete their own uploads.' });
+      }
+    }
+
     await db.deleteListing(req.params.id);
 
     db.addAuditLog({

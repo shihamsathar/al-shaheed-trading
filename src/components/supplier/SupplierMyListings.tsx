@@ -29,12 +29,23 @@ export const SupplierMyListings: React.FC<SupplierMyListingsProps> = ({ onNaviga
   const [selectedListing, setSelectedListing] = useState<any | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
+  // Strictly filter for this supplier's uploads only (never show others)
+  const isMyListing = (l: any) => {
+    if (!user) return false;
+    const matchId = Boolean(l.supplierId && l.supplierId === user.id);
+    const matchEmail = Boolean(l.supplierEmail && user.email && l.supplierEmail.toLowerCase() === user.email.toLowerCase());
+    const userPhoneDigits = user.phone ? user.phone.replace(/\D/g, '') : '';
+    const lPhoneDigits = l.supplierPhone ? l.supplierPhone.replace(/\D/g, '') : '';
+    const matchPhone = Boolean(userPhoneDigits.length >= 7 && lPhoneDigits && (lPhoneDigits.includes(userPhoneDigits) || userPhoneDigits.includes(lPhoneDigits)));
+    return matchId || matchEmail || matchPhone;
+  };
+
   const loadMyListings = async () => {
     try {
       setLoading(true);
       const data = await api.getListings();
-      // Filter for this supplier
-      const filtered = data.filter((l) => l.supplierId === user?.id || !l.supplierId);
+      // Strictly filter for this supplier's own uploads only
+      const filtered = data.filter(isMyListing);
       setListings(filtered);
     } catch (err) {
       console.error('Failed to load listings:', err);

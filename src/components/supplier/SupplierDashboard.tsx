@@ -48,13 +48,26 @@ export const SupplierDashboard: React.FC<SupplierDashboardProps> = ({ onNavigate
       }
     }
     loadSupplierData();
-  }, []);
+  }, [user]);
 
-  const myListings = listings.filter((l) => l.supplierId === user?.id || !l.supplierId);
+  // Strictly filter for this supplier's uploads only (never show others)
+  const isMyUpload = (l: any) => {
+    if (!user) return false;
+    const matchId = Boolean(l.supplierId && l.supplierId === user.id);
+    const matchEmail = Boolean(l.supplierEmail && user.email && l.supplierEmail.toLowerCase() === user.email.toLowerCase());
+    const userPhoneDigits = user.phone ? user.phone.replace(/\D/g, '') : '';
+    const lPhoneDigits = l.supplierPhone ? l.supplierPhone.replace(/\D/g, '') : '';
+    const matchPhone = Boolean(userPhoneDigits.length >= 7 && lPhoneDigits && (lPhoneDigits.includes(userPhoneDigits) || userPhoneDigits.includes(lPhoneDigits)));
+    return matchId || matchEmail || matchPhone;
+  };
+
+  const myListings = listings.filter(isMyUpload);
   const availableLots = myListings.filter((l) => l.status === 'AVAILABLE');
+  const pendingLots = myListings.filter((l) => l.status === 'PENDING_REVIEW');
   const soldLots = myListings.filter((l) => l.status === 'SOLD');
-  const totalListedMT = myListings.reduce((acc, l) => acc + (l.quantity || 0), 0);
-  const totalSoldMT = soldLots.reduce((acc, l) => acc + (l.quantity || 0), 0);
+  const activeLots = myListings.filter((l) => l.status !== 'SOLD' && l.status !== 'ARCHIVED');
+  const totalListedMT = myListings.reduce((acc, l) => acc + (Number(l.quantity) || 0), 0);
+  const totalSoldMT = soldLots.reduce((acc, l) => acc + (Number(l.quantity) || 0), 0);
 
   if (loading) {
     return (
@@ -103,7 +116,7 @@ export const SupplierDashboard: React.FC<SupplierDashboardProps> = ({ onNavigate
               className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-white font-bold text-xs border border-emerald-500/30 backdrop-blur-md transition-all cursor-pointer"
             >
               <Boxes className="w-4 h-4 text-emerald-400" />
-              <span>View All Listings ({myListings.length})</span>
+              <span>My Uploads ({myListings.length})</span>
             </button>
           </div>
         </div>
@@ -113,13 +126,14 @@ export const SupplierDashboard: React.FC<SupplierDashboardProps> = ({ onNavigate
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-slate-900/90 backdrop-blur-md p-6 rounded-2xl border border-emerald-900/30 shadow-lg flex flex-col justify-between">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-            Available Inventory
+            My Active Uploads
           </span>
           <div className="text-3xl font-black text-white font-mono mt-2">
-            {availableLots.length} <span className="text-base font-normal text-slate-400">Lots</span>
+            {availableLots.length} <span className="text-base font-normal text-slate-400">Lots Ready</span>
           </div>
           <div className="text-xs text-emerald-400 font-mono mt-1">
-            {availableLots.reduce((acc, l) => acc + l.quantity, 0).toLocaleString()} MT ready to ship
+            {pendingLots.length > 0 ? `${pendingLots.length} under review • ` : ''}
+            {availableLots.reduce((acc, l) => acc + (Number(l.quantity) || 0), 0).toLocaleString()} MT ready
           </div>
         </div>
 
@@ -137,13 +151,13 @@ export const SupplierDashboard: React.FC<SupplierDashboardProps> = ({ onNavigate
 
         <div className="bg-slate-900/90 backdrop-blur-md p-6 rounded-2xl border border-slate-800 shadow-lg flex flex-col justify-between">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-            Total Material Listed
+            My Total Uploaded Volume
           </span>
           <div className="text-3xl font-black text-white font-mono mt-2">
             {totalListedMT.toLocaleString()} <span className="text-base font-normal text-slate-400">MT</span>
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            Across {myListings.length} total lots
+            Across {myListings.length} uploaded lots
           </div>
         </div>
 
@@ -168,52 +182,82 @@ export const SupplierDashboard: React.FC<SupplierDashboardProps> = ({ onNavigate
           <div className="flex items-center justify-between">
             <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
               <Boxes className="w-4 h-4 text-emerald-400" />
-              My Active Scrap Listings
+              My Uploaded Scrap Lots
             </h2>
             <button
               onClick={() => onNavigate('supplier-listings')}
-              className="text-xs font-bold text-emerald-400 hover:underline"
+              className="text-xs font-bold text-emerald-400 hover:underline cursor-pointer"
             >
-              View All &rarr;
+              View All ({myListings.length}) &rarr;
             </button>
           </div>
 
-          <div className="space-y-3.5">
-            {availableLots.slice(0, 3).map((l) => (
-              <div
-                key={l.id}
-                className="bg-slate-900/90 backdrop-blur-md rounded-2xl border border-emerald-900/30 p-4.5 hover:border-emerald-500/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-800 shrink-0 border border-slate-700 flex items-center justify-center">
-                    {l.photos?.[0] ? (
-                      <img
-                        src={l.photos[0]}
-                        alt={l.materialName}
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Boxes className="w-6 h-6 text-slate-600" />
-                    )}
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
-                      {l.commodityCategory}
-                    </span>
-                    <h3 className="text-sm font-bold text-white mt-1">{l.materialName}</h3>
-                    <p className="text-xs text-slate-400 font-mono mt-0.5">
-                      {l.quantity} MT &bull; ${l.pricePerUnit} USD/{l.quantityUnit || 'MT'} &bull; {l.incoterms}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 self-end sm:self-center">
-                  <Badge status={l.status} size="sm" />
-                </div>
+          {activeLots.length === 0 ? (
+            <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-dashed border-slate-800 p-8 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto mb-3">
+                <Boxes className="w-6 h-6" />
               </div>
-            ))}
-          </div>
+              <h3 className="text-sm font-bold text-white">No Scrap Lots Uploaded Yet</h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                Only your uploaded scrap materials and lots will appear here. No lots from other suppliers are shown.
+              </p>
+              <button
+                onClick={() => onNavigate('supplier-add-listing')}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 font-black text-xs shadow-md transition-all cursor-pointer"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Upload First Scrap Lot</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {activeLots.slice(0, 4).map((l) => (
+                <div
+                  key={l.id}
+                  className="bg-slate-900/90 backdrop-blur-md rounded-2xl border border-emerald-900/30 p-4.5 hover:border-emerald-500/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-800 shrink-0 border border-slate-700 flex items-center justify-center">
+                      {l.photos?.[0] ? (
+                        <img
+                          src={l.photos[0]}
+                          alt={l.materialName}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Boxes className="w-6 h-6 text-slate-600" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                          {l.commodityCategory}
+                        </span>
+                        {l.isPublished ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-900/40 text-emerald-400 border border-emerald-700/50">
+                            Published
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            Under Admin Review
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-sm font-bold text-white mt-1">{l.materialName}</h3>
+                      <p className="text-xs text-slate-400 font-mono mt-0.5">
+                        {l.quantity} MT &bull; ${l.pricePerUnit} USD/{l.quantityUnit || 'MT'} &bull; {l.incoterms}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-center">
+                    <Badge status={l.status} size="sm" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Global Buyer Demands Feed */}

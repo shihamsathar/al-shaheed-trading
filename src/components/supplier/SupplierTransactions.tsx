@@ -25,7 +25,7 @@ export const SupplierTransactions: React.FC = () => {
       try {
         setLoading(true);
         const data = await api.getTransactions();
-        const myTxns = data.filter((t) => t.supplierId === user?.id || !t.supplierId);
+        const myTxns = data.filter((t) => Boolean(t.supplierId && t.supplierId === user?.id));
         setTransactions(myTxns);
       } catch (err) {
         console.error('Failed to load supplier transactions:', err);
