@@ -53,18 +53,19 @@ const MainLayout: React.FC = () => {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Sync tab when user changes role
+  // Sync tab when user changes role or logs in with a role
   React.useEffect(() => {
-    if (user?.role === 'SUPPLIER' && !activeTab.startsWith('supplier')) {
+    if (!user) return;
+    if (user.role === 'SUPPLIER' && !activeTab.startsWith('supplier')) {
       setActiveTab('supplier-dashboard');
-    } else if (user?.role === 'BUYER' && !activeTab.startsWith('buyer')) {
+    } else if (user.role === 'BUYER' && !activeTab.startsWith('buyer')) {
       setActiveTab('buyer-dashboard');
-    } else if (user?.role === 'AGENT' && !activeTab.startsWith('agent')) {
+    } else if (user.role === 'AGENT' && !activeTab.startsWith('agent')) {
       setActiveTab('agent-dashboard');
-    } else if (user?.role === 'ADMIN' && !activeTab.startsWith('admin')) {
+    } else if (user.role === 'ADMIN' && !activeTab.startsWith('admin') && !activeTab.startsWith('supplier') && !activeTab.startsWith('buyer') && !activeTab.startsWith('agent')) {
       setActiveTab('admin-dashboard');
     }
-  }, [user?.role]);
+  }, [user?.role, user?.id]);
 
   if (loading) {
     return (
@@ -92,6 +93,17 @@ const MainLayout: React.FC = () => {
   }
 
   const renderContent = () => {
+    // Enforce role isolation: non-admins cannot render other roles' views
+    if (user.role === 'SUPPLIER' && !activeTab.startsWith('supplier')) {
+      return <SupplierDashboard onNavigate={(tab) => setActiveTab(tab)} />;
+    }
+    if (user.role === 'BUYER' && !activeTab.startsWith('buyer')) {
+      return <BuyerDashboard onNavigate={(tab) => setActiveTab(tab)} />;
+    }
+    if (user.role === 'AGENT' && !activeTab.startsWith('agent')) {
+      return <AgentDashboard onNavigate={(tab) => setActiveTab(tab)} />;
+    }
+
     switch (activeTab) {
       // Admin
       case 'admin-dashboard':

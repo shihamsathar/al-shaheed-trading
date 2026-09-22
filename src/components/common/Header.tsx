@@ -198,51 +198,63 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
             )}
           </div>
 
-          {/* Quick Role Switcher Bar in Header */}
-          <div className="hidden lg:flex items-center bg-slate-900/90 border border-emerald-900/40 rounded-xl p-1 gap-1 shadow-xs">
-            <span className="text-[10px] uppercase font-bold text-slate-400 px-2 tracking-wider">Desk:</span>
-            {[
-              { id: 'ADMIN', label: 'Admin', icon: ShieldCheck, color: 'text-amber-400' },
-              { id: 'SUPPLIER', label: 'Supplier', icon: Building2, color: 'text-blue-400' },
-              { id: 'BUYER', label: 'Buyer', icon: ShoppingCart, color: 'text-emerald-400' },
-              { id: 'AGENT', label: 'Agent', icon: Briefcase, color: 'text-purple-400' },
-            ].map((r) => {
-              const Icon = r.icon;
-              const isActive = role === r.id;
-              return (
-                <button
-                  key={r.id}
-                  id={`header-switch-role-${r.id.toLowerCase()}`}
-                  onClick={() => switchDemoUser(r.id)}
-                  title={`Instant switch to ${r.label} Desk`}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-400'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : r.color}`} />
-                  <span>{r.label}</span>
-                </button>
-              );
-            })}
+          {/* Quick Role Switcher Bar in Header - ONLY visible in ADMIN Dashboard */}
+          {role === 'ADMIN' ? (
+            <div id="admin-desk-switcher-bar" className="hidden lg:flex items-center bg-slate-900/90 border border-emerald-900/40 rounded-xl p-1 gap-1 shadow-xs">
+              <span className="text-[10px] uppercase font-bold text-slate-400 px-2 tracking-wider">Desk:</span>
+              {[
+                { id: 'ADMIN', label: 'Admin', icon: ShieldCheck, color: 'text-amber-400' },
+                { id: 'SUPPLIER', label: 'Supplier', icon: Building2, color: 'text-blue-400' },
+                { id: 'BUYER', label: 'Buyer', icon: ShoppingCart, color: 'text-emerald-400' },
+                { id: 'AGENT', label: 'Agent', icon: Briefcase, color: 'text-purple-400' },
+              ].map((r) => {
+                const Icon = r.icon;
+                const isActive = role === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    id={`header-switch-role-${r.id.toLowerCase()}`}
+                    onClick={() => switchDemoUser(r.id)}
+                    title={`Instant switch to ${r.label} Desk`}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-400'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : r.color}`} />
+                    <span>{r.label}</span>
+                  </button>
+                );
+              })}
 
-            {/* Random Role Switcher */}
-            <button
-              id="header-switch-role-random"
-              onClick={() => {
-                const allRoles = ['ADMIN', 'SUPPLIER', 'BUYER', 'AGENT'];
-                const otherRoles = allRoles.filter((r) => r !== role);
-                const randomRole = otherRoles[Math.floor(Math.random() * otherRoles.length)];
-                switchDemoUser(randomRole as any);
-              }}
-              title="Randomly switch across Admin, Supplier, Buyer, and Agent desks"
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer border-l border-slate-800 pl-2 ml-0.5"
-            >
-              <span>🎲</span>
-              <span className="hidden xl:inline">Random</span>
-            </button>
-          </div>
+              {/* Random Role Switcher */}
+              <button
+                id="header-switch-role-random"
+                onClick={() => {
+                  const allRoles = ['ADMIN', 'SUPPLIER', 'BUYER', 'AGENT'];
+                  const otherRoles = allRoles.filter((r) => r !== role);
+                  const randomRole = otherRoles[Math.floor(Math.random() * otherRoles.length)];
+                  switchDemoUser(randomRole as any);
+                }}
+                title="Randomly switch across Admin, Supplier, Buyer, and Agent desks"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer border-l border-slate-800 pl-2 ml-0.5"
+              >
+                <span>🎲</span>
+                <span className="hidden xl:inline">Random</span>
+              </button>
+            </div>
+          ) : (
+            /* For Non-Admins: Clear Direct Connection to Admin Desk Badge */
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-emerald-900/40 text-xs shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-slate-400 text-[11px] font-medium">Direct Link:</span>
+              <span className="text-emerald-300 font-bold text-[11px] flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                Al Shaheed Admin Central Desk
+              </span>
+            </div>
+          )}
 
           {/* User Profile Pill & Dropdown */}
           <div className="relative">
@@ -295,90 +307,92 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
                   </div>
                 </div>
 
-                {/* Instant Role Switcher Section inside Dropdown */}
-                <div className="border-t border-slate-800 my-2 pt-2">
-                  <div className="px-3 py-1 text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
-                    <span>Instant Desk Switcher</span>
-                    <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800 font-mono">1-Click</span>
+                {/* Instant Role Switcher Section inside Dropdown - ONLY for ADMIN */}
+                {role === 'ADMIN' && (
+                  <div className="border-t border-slate-800 my-2 pt-2">
+                    <div className="px-3 py-1 text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
+                      <span>Admin Desk Switcher</span>
+                      <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800 font-mono">Admin Only</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 p-1 mt-1">
+                      <button
+                        id="dropdown-switch-role-admin"
+                        onClick={() => {
+                          switchDemoUser('ADMIN');
+                          setShowUserMenu(false);
+                        }}
+                        className={`flex items-center gap-1.5 p-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
+                          role === 'ADMIN'
+                            ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-300'
+                            : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                        }`}
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <div className="truncate">
+                          <div>Admin</div>
+                          <div className="text-[9px] opacity-75 font-normal">Pricing &amp; Oversight</div>
+                        </div>
+                      </button>
+
+                      <button
+                        id="dropdown-switch-role-supplier"
+                        onClick={() => {
+                          switchDemoUser('SUPPLIER');
+                          setShowUserMenu(false);
+                        }}
+                        className={`flex items-center gap-1.5 p-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
+                          role === 'SUPPLIER'
+                            ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-300'
+                            : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                        }`}
+                      >
+                        <Building2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        <div className="truncate">
+                          <div>Supplier</div>
+                          <div className="text-[9px] opacity-75 font-normal">List Lots &amp; Dispatch</div>
+                        </div>
+                      </button>
+
+                      <button
+                        id="dropdown-switch-role-buyer"
+                        onClick={() => {
+                          switchDemoUser('BUYER');
+                          setShowUserMenu(false);
+                        }}
+                        className={`flex items-center gap-1.5 p-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
+                          role === 'BUYER'
+                            ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-300'
+                            : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                        }`}
+                      >
+                        <ShoppingCart className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <div className="truncate">
+                          <div>Buyer</div>
+                          <div className="text-[9px] opacity-75 font-normal">Browse &amp; Bid</div>
+                        </div>
+                      </button>
+
+                      <button
+                        id="dropdown-switch-role-agent"
+                        onClick={() => {
+                          switchDemoUser('AGENT');
+                          setShowUserMenu(false);
+                        }}
+                        className={`flex items-center gap-1.5 p-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
+                          role === 'AGENT'
+                            ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-300'
+                            : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                        }`}
+                      >
+                        <Briefcase className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                        <div className="truncate">
+                          <div>Agent</div>
+                          <div className="text-[9px] opacity-75 font-normal">Commissions &amp; Lots</div>
+                        </div>
+                      </button>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5 p-1 mt-1">
-                    <button
-                      id="dropdown-switch-role-admin"
-                      onClick={() => {
-                        switchDemoUser('ADMIN');
-                        setShowUserMenu(false);
-                      }}
-                      className={`flex items-center gap-1.5 p-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
-                        role === 'ADMIN'
-                          ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-300'
-                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
-                      }`}
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <div className="truncate">
-                        <div>Admin</div>
-                        <div className="text-[9px] opacity-75 font-normal">Pricing &amp; Oversight</div>
-                      </div>
-                    </button>
-
-                    <button
-                      id="dropdown-switch-role-supplier"
-                      onClick={() => {
-                        switchDemoUser('SUPPLIER');
-                        setShowUserMenu(false);
-                      }}
-                      className={`flex items-center gap-1.5 p-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
-                        role === 'SUPPLIER'
-                          ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-300'
-                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
-                      }`}
-                    >
-                      <Building2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                      <div className="truncate">
-                        <div>Supplier</div>
-                        <div className="text-[9px] opacity-75 font-normal">List Lots &amp; Dispatch</div>
-                      </div>
-                    </button>
-
-                    <button
-                      id="dropdown-switch-role-buyer"
-                      onClick={() => {
-                        switchDemoUser('BUYER');
-                        setShowUserMenu(false);
-                      }}
-                      className={`flex items-center gap-1.5 p-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
-                        role === 'BUYER'
-                          ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-300'
-                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
-                      }`}
-                    >
-                      <ShoppingCart className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      <div className="truncate">
-                        <div>Buyer</div>
-                        <div className="text-[9px] opacity-75 font-normal">Browse &amp; Bid</div>
-                      </div>
-                    </button>
-
-                    <button
-                      id="dropdown-switch-role-agent"
-                      onClick={() => {
-                        switchDemoUser('AGENT');
-                        setShowUserMenu(false);
-                      }}
-                      className={`flex items-center gap-1.5 p-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
-                        role === 'AGENT'
-                          ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-300'
-                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
-                      }`}
-                    >
-                      <Briefcase className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                      <div className="truncate">
-                        <div>Agent</div>
-                        <div className="text-[9px] opacity-75 font-normal">Commissions &amp; Lots</div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
+                )}
 
                 <div className="border-t border-slate-800 mt-2 pt-2">
                   <button
