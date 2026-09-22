@@ -217,16 +217,24 @@ class TradingDatabase {
     return otp;
   }
 
-  async findRegistrationOtp(email: string, otpCode: string): Promise<RegistrationOtp | null> {
-    const cleanEmail = (email || '').trim().toLowerCase();
+  async findRegistrationOtp(identifier: string, otpCode: string): Promise<RegistrationOtp | null> {
+    const cleanId = (identifier || '').trim().toLowerCase();
     const cleanOtp = (otpCode || '').trim();
-    if (!cleanEmail || !cleanOtp) return null;
+    if (!cleanId || !cleanOtp) return null;
 
-    const found = this.registrationOtps.find(
-      (o) =>
-        o.email.toLowerCase() === cleanEmail &&
-        (o.otpCode === cleanOtp || (o as any).code === cleanOtp)
-    );
+    const digitsOnly = cleanId.replace(/\D/g, '');
+
+    const found = this.registrationOtps.find((o) => {
+      const matchOtp = o.otpCode === cleanOtp || (o as any).code === cleanOtp;
+      if (!matchOtp) return false;
+
+      const emailMatch = o.email && o.email.toLowerCase() === cleanId;
+      const phoneClean = o.phone ? o.phone.replace(/\D/g, '') : '';
+      const phoneMatch = digitsOnly.length >= 6 && phoneClean && (phoneClean.includes(digitsOnly) || digitsOnly.includes(phoneClean));
+
+      return Boolean(emailMatch || phoneMatch);
+    });
+
     if (found) {
       const code = found.otpCode || (found as any).code;
       found.otpCode = code;

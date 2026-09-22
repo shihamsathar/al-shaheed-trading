@@ -123,15 +123,15 @@ export const AdminCounterparties: React.FC = () => {
 
   const handleIssueOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!issueOtpForm.email || !issueOtpForm.name || !issueOtpForm.companyName) {
-      alert('Please fill in Name, Company, and Email.');
+    if (!issueOtpForm.phone || !issueOtpForm.name || !issueOtpForm.companyName) {
+      alert('Please fill in Name, Company, and Mobile Number for SMS OTP dispatch.');
       return;
     }
     setActionLoading(true);
     try {
       const res = await api.issueAdminRegistrationOtp(issueOtpForm);
       setIssuedOtpData(res.otp);
-      setNotification(`Official OTP verification code generated for ${issueOtpForm.name} (${issueOtpForm.email})`);
+      setNotification(`Official OTP verification code dispatched via SMS to mobile number ${issueOtpForm.phone}`);
       setTimeout(() => setNotification(null), 5000);
       await loadRegistrationOtps();
     } catch (err: any) {
@@ -146,7 +146,8 @@ export const AdminCounterparties: React.FC = () => {
       setActionLoading(true);
       const res = await api.resendAdminRegistrationOtp(otpId);
       const code = res.otp.otpCode || (res.otp as any).code || '';
-      setNotification(`Fresh OTP dispatched to ${email}: Code ${code}`);
+      const targetPhone = res.otp.phone || email;
+      setNotification(`Fresh OTP dispatched via SMS to mobile number ${targetPhone}: Code ${code}`);
       setTimeout(() => setNotification(null), 5000);
       await loadRegistrationOtps();
     } catch (err: any) {
@@ -286,6 +287,7 @@ export const AdminCounterparties: React.FC = () => {
       item.name?.toLowerCase().includes(s) ||
       item.companyName?.toLowerCase().includes(s) ||
       item.email?.toLowerCase().includes(s) ||
+      item.phone?.toLowerCase().includes(s) ||
       item.role?.toLowerCase().includes(s) ||
       code.toLowerCase().includes(s)
     );
@@ -558,10 +560,15 @@ export const AdminCounterparties: React.FC = () => {
                           <Mail className="w-3 h-3 text-slate-400 shrink-0" />
                           <span className="truncate">{otp.email}</span>
                         </p>
-                        {otp.phone && (
-                          <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                        {otp.phone ? (
+                          <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
+                            <Phone className="w-3 h-3 text-emerald-500 shrink-0" />
+                            <span>Mobile (SMS Dispatched): {otp.phone}</span>
+                          </p>
+                        ) : (
+                          <p className="text-xs text-slate-400 italic flex items-center gap-1 mt-0.5">
                             <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>{otp.phone}</span>
+                            <span>No mobile assigned</span>
                           </p>
                         )}
                       </div>
@@ -1083,51 +1090,55 @@ export const AdminCounterparties: React.FC = () => {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Mobile Number (SMS OTP Dispatch) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={issueOtpForm.phone}
+                      onChange={(e) => setIssueOtpForm({ ...issueOtpForm, phone: e.target.value })}
+                      placeholder="e.g. +974 55123456"
+                      className="w-full px-3 py-2 rounded-xl border border-emerald-500/50 bg-slate-50 dark:bg-slate-950 font-medium text-slate-900 dark:text-white"
+                    />
+                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 font-semibold">
+                      OTP is dispatched to this mobile number via SMS
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Email Address (Documentation) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={issueOtpForm.email}
+                      onChange={(e) => setIssueOtpForm({ ...issueOtpForm, email: e.target.value })}
+                      placeholder="e.g. partner@firm.com"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-medium text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Email Address (Authorized for OTP) <span className="text-rose-500">*</span>
+                    Country
                   </label>
                   <input
-                    type="email"
-                    required
-                    value={issueOtpForm.email}
-                    onChange={(e) => setIssueOtpForm({ ...issueOtpForm, email: e.target.value })}
-                    placeholder="e.g. partner@firm.com"
+                    type="text"
+                    value={issueOtpForm.country}
+                    onChange={(e) => setIssueOtpForm({ ...issueOtpForm, country: e.target.value })}
+                    placeholder="Qatar, UAE, India..."
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-medium text-slate-900 dark:text-white"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Phone Number
-                    </label>
-                    <input
-                      type="text"
-                      value={issueOtpForm.phone}
-                      onChange={(e) => setIssueOtpForm({ ...issueOtpForm, phone: e.target.value })}
-                      placeholder="e.g. +974 55123456"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-medium text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Country
-                    </label>
-                    <input
-                      type="text"
-                      value={issueOtpForm.country}
-                      onChange={(e) => setIssueOtpForm({ ...issueOtpForm, country: e.target.value })}
-                      placeholder="Qatar, UAE, India..."
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-medium text-slate-900 dark:text-white"
-                    />
-                  </div>
-                </div>
-
                 <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-500 text-[11px] leading-relaxed">
                   <p>
-                    Generating an OTP pre-approves this recipient in the system. The partner can immediately complete registration on the portal login page using this email and code.
+                    Generating an OTP pre-approves this recipient in the system and dispatches the 6-digit code to their mobile number via SMS. The partner can immediately complete registration on the portal login page using their mobile number and code.
                   </p>
                 </div>
 

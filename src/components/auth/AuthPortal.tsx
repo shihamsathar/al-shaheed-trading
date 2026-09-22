@@ -141,7 +141,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
     }
   };
 
-  // --- STEP 1: REQUEST ADMIN OTP ---
+  // --- STEP 1: REQUEST ADMIN OTP (SENT TO MOBILE NUMBER) ---
   const handleRequestAdminOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setError(null);
@@ -150,6 +150,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
     const cleanEmail = regEmail.trim();
     const cleanName = regName.trim();
     const cleanCompany = regCompanyName.trim();
+    const cleanPhone = regPhone.trim();
 
     if (!cleanName) {
       setError('Please enter your full contact name.');
@@ -159,8 +160,12 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
       setError('Please enter your company or scrap yard firm name.');
       return;
     }
+    if (!cleanPhone) {
+      setError('Please enter your mobile number in the mobile number field to receive your Admin OTP via SMS.');
+      return;
+    }
     if (!cleanEmail) {
-      setError('Please enter your business email address for Admin verification.');
+      setError('Please enter your business email address for account records.');
       return;
     }
 
@@ -171,7 +176,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
         email: cleanEmail,
         name: cleanName,
         companyName: cleanCompany,
-        phone: regPhone.trim(),
+        phone: cleanPhone,
         country: regCountry.trim() || 'Qatar',
         city: 'Doha',
       });
@@ -179,9 +184,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
       if (res.previewOtp) {
         setOtpPreview(res.previewOtp);
       }
-      setSuccessMsg(`Official Admin OTP verification code dispatched to ${cleanEmail}. Please enter the 6-digit code below.`);
+      setSuccessMsg(`Official Admin OTP verification code dispatched via SMS to mobile number ${cleanPhone}. Please enter the 6-digit code below.`);
     } catch (err: any) {
-      setError(err.message || 'Failed to dispatch Admin OTP verification code.');
+      setError(err.message || 'Failed to dispatch Admin OTP verification code to mobile number.');
     } finally {
       setIsRequestingOtp(false);
     }
@@ -194,14 +199,15 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
     setSuccessMsg(null);
 
     const cleanOtp = regOtpCode.trim();
+    const cleanPhone = regPhone.trim();
     const cleanEmail = regEmail.trim();
 
-    if (!cleanEmail) {
-      setError('Please enter your email address.');
+    if (!cleanPhone && !cleanEmail) {
+      setError('Please enter your mobile number.');
       return;
     }
     if (!cleanOtp) {
-      setError('Please enter the 6-digit Admin verification OTP code.');
+      setError('Please enter the 6-digit Admin verification OTP code sent to your mobile number.');
       return;
     }
     if (cleanOtp.length !== 6) {
@@ -212,19 +218,22 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
     setIsVerifyingOtp(true);
     try {
       const res = await api.verifyRegistrationOtp({
+        phone: cleanPhone,
         email: cleanEmail,
         otp: cleanOtp,
       });
       setVerificationToken(res.verificationToken);
       setRegStep(2);
-      // Auto-suggest a default username from email if not already filled
+      // Auto-suggest a default username from email or phone if not already filled
       if (!regUsername) {
-        const cleanSuggested = cleanEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+        const cleanSuggested = cleanEmail
+          ? cleanEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9_.-]/g, '')
+          : `user_${cleanPhone.replace(/\D/g, '').slice(-4)}`;
         setRegUsername(cleanSuggested);
       }
       setSuccessMsg('Admin OTP pre-verification approved! You can now choose your user name and password to create your account.');
     } catch (err: any) {
-      setError(err.message || 'Invalid or expired Admin OTP verification code. Please check the code or request a new one.');
+      setError(err.message || 'Invalid or expired Admin OTP verification code. Please check the code sent to your mobile or request a new one.');
     } finally {
       setIsVerifyingOtp(false);
     }
@@ -696,10 +705,37 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label
+                          htmlFor="register-phone"
+                          className="block text-[11px] font-semibold text-slate-300 mb-1"
+                        >
+                          Mobile Number (for SMS Admin OTP) <span className="text-rose-400">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-emerald-400">
+                            <Phone className="w-3.5 h-3.5" />
+                          </div>
+                          <input
+                            id="register-phone"
+                            type="tel"
+                            required
+                            disabled={isRequestingOtp || isVerifyingOtp}
+                            value={regPhone}
+                            onChange={(e) => setRegPhone(e.target.value)}
+                            placeholder="e.g. +974 55123456"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-emerald-500/40 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all shadow-inner"
+                          />
+                        </div>
+                        <p className="text-[10px] text-emerald-400/90 mt-1">
+                          OTP will be sent directly via SMS to this mobile number
+                        </p>
+                      </div>
+
+                      <div>
+                        <label
                           htmlFor="register-email"
                           className="block text-[11px] font-semibold text-slate-400 mb-1"
                         >
-                          Email Address (for Admin OTP) <span className="text-rose-400">*</span>
+                          Business Email Address <span className="text-rose-400">*</span>
                         </label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
@@ -716,29 +752,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
                             className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                           />
                         </div>
-                      </div>
-
-                      <div>
-                        <label
-                          htmlFor="register-phone"
-                          className="block text-[11px] font-semibold text-slate-400 mb-1"
-                        >
-                          Phone Number
-                        </label>
-                        <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                            <Phone className="w-3.5 h-3.5" />
-                          </div>
-                          <input
-                            id="register-phone"
-                            type="text"
-                            disabled={isRequestingOtp || isVerifyingOtp}
-                            value={regPhone}
-                            onChange={(e) => setRegPhone(e.target.value)}
-                            placeholder="e.g. +974 55123456"
-                            className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                          />
-                        </div>
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          Official partner account documentation
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -751,9 +767,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
                           <ShieldCheck className="w-4 h-4" />
                         </div>
                         <div>
-                          <h4 className="text-xs font-black text-white">Admin Pre-Verification Protocol</h4>
+                          <h4 className="text-xs font-black text-white">Mobile SMS OTP Authorization</h4>
                           <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                            Al Shaheed Admin Central Desk issues an official 6-digit OTP code to authorize your {regRole.toLowerCase()} account.
+                            Al Shaheed Admin Central Desk dispatches an official 6-digit OTP code to the mobile number provided above.
                           </p>
                         </div>
                       </div>
@@ -762,20 +778,20 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
                       <button
                         id="request-admin-otp-button"
                         type="button"
-                        disabled={isRequestingOtp || !regEmail || !regName || !regCompanyName}
+                        disabled={isRequestingOtp || !regPhone || !regName || !regCompanyName}
                         onClick={() => handleRequestAdminOtp()}
                         className="py-1.5 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                        title={!regEmail || !regName || !regCompanyName ? 'Fill Name, Company & Email first' : 'Dispatch or resend code'}
+                        title={!regPhone || !regName || !regCompanyName ? 'Fill Name, Company & Mobile Number first' : 'Dispatch or resend SMS code'}
                       >
                         {isRequestingOtp ? (
                           <>
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Requesting...</span>
+                            <span>Sending SMS...</span>
                           </>
                         ) : (
                           <>
                             <Send className="w-3.5 h-3.5" />
-                            <span>{otpRequested ? 'Resend Code' : 'Request OTP'}</span>
+                            <span>{otpRequested ? 'Resend SMS OTP' : 'Send SMS OTP'}</span>
                           </>
                         )}
                       </button>
@@ -785,9 +801,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
                     {otpPreview && (
                       <div className="p-2.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2">
-                          <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           <span className="text-emerald-300 font-medium">
-                            Admin Dispatched Code: <strong className="font-mono text-white tracking-wider text-sm">{otpPreview}</strong>
+                            SMS Dispatched to <strong className="text-white">{regPhone}</strong>: Code <strong className="font-mono text-white tracking-wider text-sm">{otpPreview}</strong>
                           </span>
                         </div>
                         <button
@@ -813,10 +829,10 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
                             htmlFor="register-otp-code"
                             className="block text-xs font-bold text-slate-300 uppercase tracking-wider"
                           >
-                            Enter 6-Digit Admin OTP Code <span className="text-rose-400">*</span>
+                            Enter 6-Digit Admin OTP Sent to Mobile <span className="text-rose-400">*</span>
                           </label>
                           <span className="text-[10px] text-slate-500">
-                            Issued by Central Admin Desk
+                            Sent to {regPhone || 'Mobile Number'}
                           </span>
                         </div>
                         <div className="relative">
@@ -847,19 +863,19 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
                           {isVerifyingOtp ? (
                             <>
                               <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                              <span>Verifying Admin OTP...</span>
+                              <span>Verifying Mobile OTP...</span>
                             </>
                           ) : (
                             <>
                               <ShieldCheck className="w-4 h-4 text-slate-950" />
-                              <span>Verify Admin OTP &amp; Proceed to Credentials</span>
+                              <span>Verify Mobile OTP &amp; Proceed to Credentials</span>
                             </>
                           )}
                         </button>
                       </div>
 
                       <p className="text-[11px] text-center text-slate-400">
-                        Don't have a code yet? Fill contact details above &amp; click <strong className="text-emerald-400 font-semibold cursor-pointer" onClick={() => (!isRequestingOtp && regEmail && regName && regCompanyName) && handleRequestAdminOtp()}>"Request OTP"</strong> to have the Admin Central Desk dispatch your code.
+                        Don't have a code yet? Enter mobile number above &amp; click <strong className="text-emerald-400 font-semibold cursor-pointer" onClick={() => (!isRequestingOtp && regPhone && regName && regCompanyName) && handleRequestAdminOtp()}>"Send SMS OTP"</strong> to receive your code.
                       </p>
                     </form>
                   </div>

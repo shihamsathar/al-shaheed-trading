@@ -249,27 +249,30 @@ async function startServer() {
   });
 
   // --- REGISTRATION OTP VERIFICATION (ADMIN-AUTHORIZED REGISTRATION) ---
-  // Step 1: Partner submits registration authorization request -> Admin Central Desk issues OTP code
+  // Step 1: Partner submits registration authorization request -> Admin Central Desk issues OTP code to mobile number
   app.post('/api/auth/request-otp', async (req, res) => {
     const { role, email, name, companyName, phone, country, city } = req.body;
 
-    if (!role || !email || !name || !companyName) {
-      return res.status(400).json({ error: 'Role, Email, Contact Name, and Company Name are required to request an Admin OTP.' });
+    if (!role || !name || !companyName || !phone) {
+      return res.status(400).json({ error: 'Role, Mobile Number, Contact Name, and Company Name are required to request an Admin OTP.' });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanPhone = phone.trim();
     const cleanRole = role.toUpperCase();
 
     if (!['SUPPLIER', 'BUYER', 'AGENT'].includes(cleanRole)) {
       return res.status(400).json({ error: 'Only Supplier, Buyer, or Agent accounts can be registered through this portal.' });
     }
 
-    // Check if account already exists
-    const existing = await db.findUser(cleanEmail);
-    if (existing) {
-      return res.status(400).json({
-        error: `An account with email "${cleanEmail}" is already registered. Please sign in or use Forgot Password.`,
-      });
+    // Check if account already exists with this email or phone
+    if (cleanEmail) {
+      const existing = await db.findUser(cleanEmail);
+      if (existing) {
+        return res.status(400).json({
+          error: `An account with email "${cleanEmail}" is already registered. Please sign in or use Forgot Password.`,
+        });
+      }
     }
 
     // Generate cryptographic-grade 6-digit numeric OTP
@@ -279,27 +282,30 @@ async function startServer() {
     const newOtpRecord: RegistrationOtp = {
       id: `otp-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`,
       role: cleanRole as 'SUPPLIER' | 'BUYER' | 'AGENT',
-      email: cleanEmail,
+      email: cleanEmail || `${cleanPhone.replace(/\D/g, '')}@partner.alshaheedtrade.com`,
       name: name.trim(),
       companyName: companyName.trim(),
-      phone: phone ? phone.trim() : '',
+      phone: cleanPhone,
       country: country ? country.trim() : 'Qatar',
       city: city ? city.trim() : 'Doha',
       otpCode,
       status: 'PENDING',
-      issuedBy: 'ADMIN',
+      issuedBy: 'ADMIN_SMS_GATEWAY',
       createdAt: new Date().toISOString(),
       expiresAt,
     };
 
     await db.saveRegistrationOtp(newOtpRecord);
 
+    // Simulated SMS Dispatch Gateway Log
+    console.log(`[SMS GATEWAY DISPATCH] OTP verification code [${otpCode}] successfully transmitted via SMS to mobile number: ${cleanPhone} (${cleanRole} - ${companyName.trim()})`);
+
     // Notify Admin Desk
     db.addNotification({
       recipientId: 'ADMIN_ALL',
       recipientRole: 'ADMIN',
-      title: `Registration OTP Issued: ${cleanRole}`,
-      message: `Admin verification OTP [${otpCode}] issued for ${name.trim()} (${companyName.trim()}) [${cleanEmail}]. Valid for 30 minutes.`,
+      title: `Registration OTP Issued to Mobile: ${cleanRole}`,
+      message: `Admin verification OTP [${otpCode}] dispatched via SMS to mobile number ${cleanPhone} for ${name.trim()} (${companyName.trim()}). Valid for 30 minutes.`,
       type: 'WARNING',
       priority: 'HIGH',
       linkUrl: '/admin/counterparties',
@@ -309,41 +315,47 @@ async function startServer() {
       userId: 'usr-admin-01',
       userName: 'Al Shaheed Admin Central Desk',
       userRole: 'ADMIN',
-      action: 'REGISTRATION_OTP_ISSUED',
+      action: 'REGISTRATION_OTP_DISPATCHED_TO_MOBILE',
       entity: 'RegistrationOtp',
       entityId: newOtpRecord.id,
-      newValue: `Role: ${cleanRole}, Company: ${companyName.trim()}, OTP Code: ${otpCode}, Email: ${cleanEmail}`,
+      newValue: `Role: ${cleanRole}, Company: ${companyName.trim()}, OTP Code: ${otpCode}, Mobile: ${cleanPhone}, Email: ${cleanEmail}`,
       ipAddress: req.ip || '127.0.0.1',
     });
 
     res.json({
       success: true,
-      message: `Official Admin OTP verification code has been dispatched by Al Shaheed Central Desk to ${cleanEmail}.`,
+      message: `Official Admin OTP verification code has been dispatched via SMS to mobile number ${cleanPhone}.`,
       otpId: newOtpRecord.id,
-      previewOtp: otpCode, // For testing & preview simulation
+      previewOtp: otpCode, // For testing & instant verification assist
+      phone: cleanPhone,
       email: cleanEmail,
       role: cleanRole,
       companyName: companyName.trim(),
       expiresAt,
+      smsNotice: `[SMS Gateway] Al Shaheed Trade Admin OTP: Your 6-digit registration code is ${otpCode}. Dispatched to ${cleanPhone}.`,
     });
   });
 
-  // Step 2: Applicant verifies the OTP dispatched by the Admin
+  // Step 2: Applicant verifies the OTP dispatched to their mobile number by the Admin
   app.post('/api/auth/verify-otp', async (req, res) => {
-    const { email, otp } = req.body;
+    const { email, phone, otp } = req.body;
     const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanPhone = (phone || '').trim();
     const cleanOtp = (otp || '').trim();
 
-    if (!cleanEmail || !cleanOtp) {
-      return res.status(400).json({ error: 'Both email address and 6-digit Admin OTP code are required.' });
+    if ((!cleanEmail && !cleanPhone) || !cleanOtp) {
+      return res.status(400).json({ error: 'Mobile number or email address and 6-digit Admin OTP code are required.' });
     }
 
-    // Match OTP record
-    const otpRecord = await db.findRegistrationOtp(cleanEmail, cleanOtp);
+    // Match OTP record by phone or email
+    let otpRecord = await db.findRegistrationOtp(cleanPhone || cleanEmail, cleanOtp);
+    if (!otpRecord && cleanEmail && cleanPhone) {
+      otpRecord = await db.findRegistrationOtp(cleanEmail, cleanOtp);
+    }
 
     if (!otpRecord) {
       return res.status(400).json({
-        error: 'Invalid OTP verification code. Please enter the exact 6-digit code issued by Al Shaheed Admin Desk.',
+        error: 'Invalid OTP verification code. Please enter the exact 6-digit code sent to your mobile number by Al Shaheed Admin Desk.',
       });
     }
 
@@ -373,7 +385,7 @@ async function startServer() {
       action: 'REGISTRATION_OTP_VERIFIED',
       entity: 'RegistrationOtp',
       entityId: otpRecord.id,
-      newValue: `OTP ${cleanOtp} successfully verified for ${otpRecord.email} (${otpRecord.companyName})`,
+      newValue: `OTP ${cleanOtp} successfully verified for mobile ${otpRecord.phone} / ${otpRecord.email} (${otpRecord.companyName})`,
       ipAddress: req.ip || '127.0.0.1',
     });
 
@@ -577,11 +589,12 @@ async function startServer() {
     const { role, email, name, companyName, phone, country, city } = req.body;
     const adminUser = (req as any).user as User;
 
-    if (!role || !email || !name || !companyName) {
-      return res.status(400).json({ error: 'Role, Email, Contact Name, and Company Name are required.' });
+    if (!role || !name || !companyName) {
+      return res.status(400).json({ error: 'Role, Contact Name, and Company Name are required.' });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanPhone = phone ? phone.trim() : '';
     const cleanRole = role.toUpperCase();
 
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -590,10 +603,10 @@ async function startServer() {
     const newOtpRecord: RegistrationOtp = {
       id: `otp-adm-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
       role: cleanRole as 'SUPPLIER' | 'BUYER' | 'AGENT',
-      email: cleanEmail,
+      email: cleanEmail || `${cleanPhone.replace(/\D/g, '')}@partner.alshaheedtrade.com`,
       name: name.trim(),
       companyName: companyName.trim(),
-      phone: phone ? phone.trim() : '',
+      phone: cleanPhone,
       country: country ? country.trim() : 'Qatar',
       city: city ? city.trim() : 'Doha',
       otpCode,
@@ -605,6 +618,8 @@ async function startServer() {
 
     await db.saveRegistrationOtp(newOtpRecord);
 
+    console.log(`[SMS GATEWAY DISPATCH] Admin issued OTP [${otpCode}] transmitted via SMS to mobile number ${cleanPhone || cleanEmail} for ${name.trim()} (${companyName.trim()})`);
+
     db.addAuditLog({
       userId: adminUser.id,
       userName: adminUser.name,
@@ -612,13 +627,13 @@ async function startServer() {
       action: 'ADMIN_MANUALLY_ISSUED_OTP',
       entity: 'RegistrationOtp',
       entityId: newOtpRecord.id,
-      newValue: `Admin issued OTP ${otpCode} for ${cleanRole} (${companyName.trim()}) [${cleanEmail}]`,
+      newValue: `Admin issued OTP ${otpCode} for ${cleanRole} (${companyName.trim()}) [Mobile: ${cleanPhone}, Email: ${cleanEmail}]`,
       ipAddress: req.ip || '127.0.0.1',
     });
 
     res.json({
       success: true,
-      message: `Admin authorization OTP ${otpCode} successfully issued for ${companyName.trim()} (${cleanRole}).`,
+      message: `Admin authorization OTP ${otpCode} successfully dispatched via SMS to mobile number ${cleanPhone || cleanEmail} for ${companyName.trim()} (${cleanRole}).`,
       otp: newOtpRecord,
     });
   });
@@ -642,6 +657,8 @@ async function startServer() {
 
     await db.saveRegistrationOtp(existingOtp);
 
+    console.log(`[SMS GATEWAY DISPATCH] Re-issued OTP [${freshCode}] transmitted via SMS to mobile number ${existingOtp.phone || existingOtp.email}`);
+
     db.addAuditLog({
       userId: adminUser.id,
       userName: adminUser.name,
@@ -649,13 +666,13 @@ async function startServer() {
       action: 'ADMIN_REGENERATED_OTP',
       entity: 'RegistrationOtp',
       entityId: existingOtp.id,
-      newValue: `Re-issued fresh OTP ${freshCode} for ${existingOtp.role} (${existingOtp.companyName})`,
+      newValue: `Re-issued fresh OTP ${freshCode} for ${existingOtp.role} (${existingOtp.companyName}) [Mobile: ${existingOtp.phone}]`,
       ipAddress: req.ip || '127.0.0.1',
     });
 
     res.json({
       success: true,
-      message: `Fresh Admin verification OTP code [${freshCode}] generated and dispatched to ${existingOtp.email}.`,
+      message: `Fresh Admin verification OTP code [${freshCode}] generated and dispatched via SMS to mobile number ${existingOtp.phone || existingOtp.email}.`,
       otp: existingOtp,
     });
   });

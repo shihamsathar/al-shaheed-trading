@@ -53,10 +53,10 @@ export const api = {
   // Registration OTP Verification Flow
   async requestRegistrationOtp(payload: {
     role: string;
-    email: string;
+    email?: string;
     name: string;
     companyName: string;
-    phone?: string;
+    phone: string;
     country?: string;
     city?: string;
   }) {
@@ -70,14 +70,16 @@ export const api = {
       message: string;
       otpId: string;
       previewOtp?: string;
-      email: string;
+      phone: string;
+      email?: string;
       role: string;
       companyName: string;
       expiresAt: string;
+      smsNotice?: string;
     }>(res);
   },
 
-  async verifyRegistrationOtp(payload: { email: string; otp: string }) {
+  async verifyRegistrationOtp(payload: { email?: string; phone?: string; otp: string }) {
     const res = await fetch(`${API_BASE}/auth/verify-otp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
