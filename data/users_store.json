@@ -1,0 +1,110 @@
+[
+  {
+    "id": "usr-admin-01",
+    "email": "admin@alshaheedrecycling.com",
+    "username": "admin",
+    "name": "Admin Desk",
+    "role": "ADMIN",
+    "companyName": "Al Shaheed Trading and Equipment Co",
+    "phone": "+974 30437712",
+    "country": "Qatar",
+    "city": "Doha",
+    "status": "ACTIVE",
+    "createdAt": "2026-01-10T08:00:00Z",
+    "password": "admin123",
+    "avatarUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
+    "lastLogin": "2026-09-30T15:14:27.292Z"
+  },
+  {
+    "id": "usr-sup-01",
+    "email": "supplier@qatarmetals.com",
+    "username": "supplier",
+    "name": "Nasser Al-Kuwari",
+    "role": "SUPPLIER",
+    "companyName": "Qatar Metal Recycling Yard W.L.L.",
+    "phone": "+974 55123456",
+    "country": "Qatar",
+    "city": "Doha",
+    "address": "Industrial Area, Street 24, Zone 57, Doha",
+    "commodityCategories": [
+      "Metal Scrap",
+      "Industrial Recyclables & Equipment"
+    ],
+    "typicalVolume": "2,500 MT / Month",
+    "preferredIncoterms": "FOB",
+    "loadingPort": "Hamad Port (Doha)",
+    "status": "ACTIVE",
+    "createdAt": "2026-01-12T08:00:00Z",
+    "password": "password123",
+    "lastLogin": "2026-09-30T15:14:27.345Z"
+  },
+  {
+    "id": "usr-buy-01",
+    "email": "buyer@qatarsteel.com",
+    "username": "buyer",
+    "name": "Tariq Mansoor",
+    "role": "BUYER",
+    "companyName": "Qatar Steel Industries Factory",
+    "phone": "+974 44998877",
+    "country": "Qatar",
+    "city": "Doha",
+    "address": "Mesaieed Industrial Zone, Qatar",
+    "commodityCategories": [
+      "Metal Scrap"
+    ],
+    "typicalVolume": "5,000 MT / Month",
+    "destinationPort": "Hamad Port (Doha)",
+    "preferredPaymentTerms": "100% LC at Sight (Irrevocable & Confirmed)",
+    "preferredIncoterms": "CIF",
+    "status": "ACTIVE",
+    "createdAt": "2026-01-14T08:00:00Z",
+    "password": "password123",
+    "lastLogin": "2026-09-30T15:14:27.398Z"
+  },
+  {
+    "id": "usr-agt-01",
+    "email": "agent@gulfbrokers.com",
+    "username": "agent",
+    "name": "Farhan Siddiqui",
+    "role": "AGENT",
+    "companyName": "Gulf Scrap Trading & Sourcing Agency",
+    "phone": "+974 66778899",
+    "country": "Qatar",
+    "city": "Doha",
+    "commodityCategories": [
+      "Metal Scrap",
+      "Paper Waste",
+      "Industrial Recyclables & Equipment"
+    ],
+    "tradingRegion": "GCC & South Asia",
+    "languages": [
+      "English",
+      "Arabic",
+      "Urdu"
+    ],
+    "experienceYears": 8,
+    "status": "ACTIVE",
+    "createdAt": "2026-01-15T08:00:00Z",
+    "password": "password123",
+    "lastLogin": "2026-09-30T15:14:27.446Z"
+  },
+  {
+    "id": "usr-sup-9682",
+    "email": "ahmed@sulaitiscrap.qa",
+    "username": "sulaiti_scrap",
+    "password": "newLifetimePassword99!",
+    "name": "Ahmed Al-Sulaiti",
+    "role": "SUPPLIER",
+    "companyName": "Al-Sulaiti Heavy Scrap Works",
+    "phone": "+974 77123999",
+    "country": "Qatar",
+    "city": "Doha",
+    "commodityCategories": [
+      "Metal Scrap"
+    ],
+    "experienceYears": 0,
+    "status": "ACTIVE",
+    "createdAt": "2026-09-30T15:06:29.682Z",
+    "lastLogin": "2026-09-30T15:06:37.880Z"
+  }
+]

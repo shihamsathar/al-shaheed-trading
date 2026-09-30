@@ -32,6 +32,24 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export const api = {
   // Auth
+  async getLifetimeCredentials() {
+    const res = await fetch(`${API_BASE}/auth/lifetime-credentials`);
+    return handleResponse<{
+      status: string;
+      guarantee: string;
+      accounts: Array<{
+        role: string;
+        roleLabel: string;
+        username: string;
+        defaultPassword: string;
+        description: string;
+        companyName: string;
+        contactPhone?: string;
+        deskName?: string;
+      }>;
+    }>(res);
+  },
+
   async login(credentials: { email?: string; username?: string; password?: string; role?: string }) {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',

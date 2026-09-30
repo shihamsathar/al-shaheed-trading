@@ -70,6 +70,56 @@ async function startServer() {
   });
 
   // --- AUTHENTICATION ---
+  // Return list of lifetime institutional credentials & active access for continuous login
+  app.get('/api/auth/lifetime-credentials', (req, res) => {
+    res.json({
+      status: 'active',
+      guarantee: 'Life-Long Access Guaranteed: User names and passwords are permanently persistent across all sessions and system reboots.',
+      accounts: [
+        {
+          role: 'ADMIN',
+          roleLabel: 'Admin Central Desk',
+          username: 'admin',
+          defaultPassword: 'admin123',
+          description: 'Trade Oversight, Pricing Margins, OTP Gateways, Counterparty Approvals',
+          companyName: 'Al Shaheed Trading and Equipment Co',
+          contactPhone: '+974 30437712',
+          deskName: 'Executive Trade Management Desk',
+        },
+        {
+          role: 'SUPPLIER',
+          roleLabel: 'Supplier Desk',
+          username: 'supplier',
+          defaultPassword: 'password123',
+          description: 'Yard Inventory, Scrap Lot Uploads, Dispatch Schedules, Price Offers',
+          companyName: 'Qatar Metal Recycling Yard W.L.L.',
+          contactPhone: '+974 55123456',
+          deskName: 'Doha Scrap Yard & Recycling Facility',
+        },
+        {
+          role: 'BUYER',
+          roleLabel: 'Buyer Desk',
+          username: 'buyer',
+          defaultPassword: 'password123',
+          description: 'Global Sourcing, Order Placement, Letter of Credit, Delivery Tracking',
+          companyName: 'Qatar Steel Industries Factory',
+          contactPhone: '+974 44998877',
+          deskName: 'Mesaieed Steel Melt Shop Procurement',
+        },
+        {
+          role: 'AGENT',
+          roleLabel: 'Agent Desk',
+          username: 'agent',
+          defaultPassword: 'password123',
+          description: 'Commission Brokerage, Matchmaking, Regional Inspection Coordination',
+          companyName: 'Gulf Scrap Trading Agency',
+          contactPhone: '+974 66778899',
+          deskName: 'GCC Regional Commodities Brokerage',
+        },
+      ],
+    });
+  });
+
   app.post('/api/auth/login', async (req, res) => {
     const { email, username, password, role } = req.body;
     const loginIdentifier = (username || email || '').trim().toLowerCase();

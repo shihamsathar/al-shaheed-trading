@@ -285,11 +285,21 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
                 className="absolute right-0 mt-2 w-80 bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-emerald-500/20 overflow-hidden z-50 p-2.5 animate-in fade-in slide-in-from-top-2 duration-150"
               >
                 <div className="p-3.5 border-b border-slate-800 bg-slate-950/80 rounded-xl mb-2">
-                  <p className="text-xs font-bold text-white">{user?.name}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-white">{user?.name}</p>
+                    <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/40 px-2 py-0.5 rounded-md">
+                      @{user?.username || user?.role?.toLowerCase()}
+                    </span>
+                  </div>
                   <p className="text-[11px] text-slate-400 truncate mt-0.5 font-mono">{user?.email}</p>
-                  <div className="mt-2.5 inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                    Verified {role} Desk
+                  <div className="mt-2.5 flex items-center justify-between gap-2">
+                    <div className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                      Verified {role} Desk
+                    </div>
+                    <span className="text-[9px] text-emerald-400/80 font-mono tracking-wider font-semibold">
+                      Lifetime Active
+                    </span>
                   </div>
                 </div>
 
@@ -396,6 +406,11 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
                   <button
                     id="logout-btn"
                     onClick={() => {
+                      try {
+                        sessionStorage.setItem('ast_just_logged_out', 'true');
+                      } catch {
+                        // ignore
+                      }
                       logout();
                       setShowUserMenu(false);
                     }}
@@ -412,7 +427,14 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, activeViewTitle
           {/* Direct 1-Click Logout Button in Header Bar */}
           <button
             id="header-direct-logout-button"
-            onClick={() => logout()}
+            onClick={() => {
+              try {
+                sessionStorage.setItem('ast_just_logged_out', 'true');
+              } catch {
+                // ignore
+              }
+              logout();
+            }}
             title="Log Out of Al Shaheed Portal"
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-300 hover:text-white bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 transition-all cursor-pointer shadow-xs"
           >

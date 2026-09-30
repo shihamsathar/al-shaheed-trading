@@ -13,7 +13,7 @@
  * - Comprehensive error & validation feedback
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { Logo } from '../common/Logo';
@@ -62,6 +62,10 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState<boolean>(() => {
+    const val = localStorage.getItem('ast_remember_me');
+    return val !== 'false';
+  });
 
   // --- REGISTER STATE (SUPPLIER, BUYER, AGENT) ---
   const [regRole, setRegRole] = useState<'SUPPLIER' | 'BUYER' | 'AGENT'>('SUPPLIER');
@@ -97,6 +101,30 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Initial load: populate remembered credentials & check logout status
+  useEffect(() => {
+    try {
+      const remUser = localStorage.getItem('ast_remembered_username');
+      const remPass = localStorage.getItem('ast_remembered_password');
+      if (remUser) {
+        setUsername(remUser);
+        if (remPass) setPassword(remPass);
+      } else {
+        // Pre-fill admin for instant convenience
+        setUsername('admin');
+        setPassword('admin123');
+      }
+
+      const justLoggedOut = sessionStorage.getItem('ast_just_logged_out');
+      if (justLoggedOut) {
+        sessionStorage.removeItem('ast_just_logged_out');
+        setSuccessMsg('You have signed out safely.');
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Clear messages when switching modes
   const switchMode = (newMode: AuthMode) => {
     setMode(newMode);
@@ -119,7 +147,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
 
     const trimmedUsername = username.trim();
     if (!trimmedUsername) {
-      setError('Please enter your user name or email address.');
+      setError('Please enter your user name, email, or registered mobile number.');
       return;
     }
 
@@ -131,6 +159,24 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
     setIsSubmitting(true);
     try {
       await login(trimmedUsername, password);
+
+      // Save credentials for lifetime continuous access
+      if (rememberMe) {
+        try {
+          localStorage.setItem('ast_remember_me', 'true');
+          localStorage.setItem('ast_remembered_username', trimmedUsername);
+          localStorage.setItem('ast_remembered_password', password);
+        } catch {
+          // ignore
+        }
+      } else {
+        try {
+          localStorage.setItem('ast_remember_me', 'false');
+          localStorage.removeItem('ast_remembered_username');
+          localStorage.removeItem('ast_remembered_password');
+        } catch {}
+      }
+
       if (onSuccess) {
         onSuccess();
       }
@@ -288,6 +334,16 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
         verificationToken,
         otp: regOtpCode.trim(),
       });
+
+      // Persist credentials for continuous access
+      try {
+        localStorage.setItem('ast_remember_me', 'true');
+        localStorage.setItem('ast_remembered_username', cleanUsername);
+        localStorage.setItem('ast_remembered_password', regPassword);
+      } catch {
+        // ignore
+      }
+
       if (onSuccess) {
         onSuccess();
       }
@@ -327,7 +383,16 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
       const res = await resetPassword(identifier, resetNewPassword);
       setSuccessMsg(res.message || 'New password saved successfully! You can now log in.');
       setUsername(identifier);
-      setPassword('');
+      setPassword(resetNewPassword);
+
+      // Update remembered credentials
+      try {
+        localStorage.setItem('ast_remembered_username', identifier);
+        localStorage.setItem('ast_remembered_password', resetNewPassword);
+      } catch {
+        // ignore
+      }
+
       setMode('login');
     } catch (err: any) {
       setError(err.message || 'Failed to reset password. Please verify the user name or email.');
@@ -376,22 +441,23 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
           {/* MODE 1: LOGIN                                                             */}
           {/* ========================================================================= */}
           {mode === 'login' && (
-            <div>
+            <div className="space-y-6">
               <div className="text-center mb-6">
-                <h2 className="text-lg font-black text-white tracking-wide">Institutional Login</h2>
+                <h2 className="text-xl font-black text-white tracking-wide">Institutional Trade Login</h2>
                 <p className="text-xs text-slate-400 mt-1">
-                  Sign in with your created user name and password
+                  Sign in to access your trading desk, orders, and market operations
                 </p>
               </div>
 
-              <form onSubmit={handleLoginSubmit} className="space-y-4">
+              {/* LOGIN FORM */}
+              <form onSubmit={handleLoginSubmit} autoComplete="on" className="space-y-4">
                 {/* User Name Input */}
                 <div>
                   <label
                     htmlFor="login-username"
                     className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2"
                   >
-                    User Name or Email
+                    User Name, Email, or Mobile Number
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
@@ -409,8 +475,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
                         setUsername(e.target.value);
                         if (error) setError(null);
                       }}
-                      placeholder="e.g. admin, supplier, buyer, or your username"
-                      className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all disabled:opacity-50"
+                      placeholder="e.g. admin, supplier, buyer, agent, or +974..."
+                      className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all disabled:opacity-50 font-mono"
                     />
                   </div>
                 </div>
@@ -449,8 +515,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
                         setPassword(e.target.value);
                         if (error) setError(null);
                       }}
-                      placeholder="Enter Password"
-                      className="w-full pl-10 pr-11 py-3 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all disabled:opacity-50"
+                      placeholder="Enter your password"
+                      className="w-full pl-10 pr-11 py-3 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all disabled:opacity-50 font-mono"
                     />
                     <button
                       type="button"
@@ -463,8 +529,24 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
                   </div>
                 </div>
 
+                {/* Remember Me */}
+                <div className="flex items-center justify-between py-1">
+                  <label htmlFor="remember-me-checkbox" className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      id="remember-me-checkbox"
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-950 cursor-pointer accent-emerald-500"
+                    />
+                    <span className="text-xs text-slate-300 font-medium">
+                      Remember login credentials
+                    </span>
+                  </label>
+                </div>
+
                 {/* Login Button */}
-                <div className="pt-2">
+                <div className="pt-1">
                   <button
                     id="login-button"
                     type="submit"
@@ -474,12 +556,12 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
                     {isSubmitting ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                        <span>Authenticating...</span>
+                        <span>Signing in...</span>
                       </>
                     ) : (
                       <>
                         <LogIn className="w-4 h-4 text-slate-950" />
-                        <span>Login</span>
+                        <span>Sign In to Trade Desk</span>
                       </>
                     )}
                   </button>
@@ -487,9 +569,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
               </form>
 
               {/* Create Account Divider & Button */}
-              <div className="mt-6 pt-5 border-t border-slate-800/80 text-center space-y-3">
+              <div className="pt-4 border-t border-slate-800 text-center space-y-2.5">
                 <p className="text-xs text-slate-400 font-medium">
-                  Need an account for your trading firm?
+                  Need a new account for your trading firm or scrap yard?
                 </p>
                 <button
                   id="switch-to-create-account-button"
@@ -498,7 +580,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onSuccess }) => {
                   className="w-full py-2.5 px-4 rounded-xl bg-slate-800/70 hover:bg-slate-800 text-emerald-300 hover:text-emerald-200 border border-emerald-800/40 hover:border-emerald-700/60 font-bold text-xs tracking-wide flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
                 >
                   <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Create Supplier, Buyer, or Agent Account</span>
+                  <span>Create Supplier, Buyer, or Agent Account (Mobile OTP Verified)</span>
                 </button>
               </div>
             </div>

@@ -3,6 +3,8 @@
  * Server Database & In-Memory Store with Seed Data, Matching Engine & Privacy Sanitizers
  */
 
+import fs from 'fs';
+import path from 'path';
 import {
   User,
   ScrapListing,
@@ -39,6 +41,44 @@ import {
   findUserInFirestore,
 } from './firestore.js';
 
+const DATA_DIR = path.resolve(process.cwd(), 'data');
+const USERS_FILE = path.join(DATA_DIR, 'users_store.json');
+const OTPS_FILE = path.join(DATA_DIR, 'registration_otps.json');
+const DB_STORE_FILE = path.join(DATA_DIR, 'trading_store.json');
+
+function ensureDataDir(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+  } catch (err) {
+    console.warn('[Storage] Warning on data directory creation:', err);
+  }
+}
+
+function readJsonFile<T>(filePath: string, fallback: T): T {
+  try {
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      if (content.trim()) {
+        return JSON.parse(content) as T;
+      }
+    }
+  } catch (err) {
+    console.warn(`[Storage] Warning reading ${filePath}:`, err);
+  }
+  return fallback;
+}
+
+function writeJsonFile(filePath: string, data: any): void {
+  try {
+    ensureDataDir();
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn(`[Storage] Warning writing ${filePath}:`, err);
+  }
+}
+
 class TradingDatabase {
   users: User[] = [];
   listings: ScrapListing[] = [];
@@ -60,14 +100,38 @@ class TradingDatabase {
     this.syncWithFirestore();
   }
 
+  persistUsers() {
+    writeJsonFile(USERS_FILE, this.users);
+  }
+
+  persistOtps() {
+    writeJsonFile(OTPS_FILE, this.registrationOtps);
+  }
+
+  persistDbStore() {
+    writeJsonFile(DB_STORE_FILE, {
+      listings: this.listings,
+      requirements: this.requirements,
+      transactions: this.transactions,
+      assignments: this.assignments,
+      documents: this.documents,
+      notifications: this.notifications,
+      auditLogs: this.auditLogs,
+      settings: this.settings,
+    });
+  }
+
   seedInitialData() {
-    this.users = JSON.parse(JSON.stringify(INITIAL_USERS)).map((u: User) => ({
+    ensureDataDir();
+
+    // 1. Base official institutional accounts with lifetime permanent credentials
+    const defaultUsers = JSON.parse(JSON.stringify(INITIAL_USERS)).map((u: User) => ({
       ...u,
       username: u.username || (u.name === 'admin' ? 'admin' : (u.email ? u.email.split('@')[0].toLowerCase() : u.name.toLowerCase().replace(/\s+/g, ''))),
       password: u.role === 'ADMIN' ? 'admin123' : 'password123',
     }));
-    // Enforce default credentials for demo/production stability
-    for (const u of this.users) {
+
+    for (const u of defaultUsers) {
       if (u.role === 'ADMIN') {
         u.username = 'admin';
         u.password = 'admin123';
@@ -75,75 +139,113 @@ class TradingDatabase {
         u.password = 'password123';
       }
     }
-    this.listings = JSON.parse(JSON.stringify(INITIAL_LISTINGS));
-    this.requirements = JSON.parse(JSON.stringify(INITIAL_REQUIREMENTS));
-    this.transactions = JSON.parse(JSON.stringify(INITIAL_TRANSACTIONS));
-    this.assignments = JSON.parse(JSON.stringify(INITIAL_AGENT_ASSIGNMENTS));
-    this.documents = JSON.parse(JSON.stringify(INITIAL_DOCUMENTS));
-    this.notifications = JSON.parse(JSON.stringify(INITIAL_NOTIFICATIONS));
-    this.auditLogs = JSON.parse(JSON.stringify(INITIAL_AUDIT_LOGS));
-    this.settings = JSON.parse(JSON.stringify(DEFAULT_SYSTEM_SETTINGS));
 
-    // Initial Registration OTPs (Official Admin Verification Desk)
-    this.registrationOtps = [
-      {
-        id: 'otp-demo-01',
-        role: 'SUPPLIER',
-        email: 'supplier@qatarmetals.com',
-        name: 'Nasser Al-Kuwari',
-        companyName: 'Qatar Metal Recycling Yard W.L.L.',
-        phone: '+974 55123456',
-        country: 'Qatar',
-        city: 'Doha',
-        otpCode: '849201',
-        status: 'USED',
-        issuedBy: 'ADMIN',
-        createdAt: '2026-01-12T07:45:00Z',
-        expiresAt: '2026-01-12T08:45:00Z',
-        verifiedAt: '2026-01-12T07:55:00Z',
-        usedAt: '2026-01-12T08:00:00Z',
-      },
-      {
-        id: 'otp-demo-02',
-        role: 'BUYER',
-        email: 'procurement@jswsteel.in',
-        name: 'Rajesh Mehta',
-        companyName: 'JSW Steel & Alloys Ltd',
-        phone: '+91 9820123456',
-        country: 'India',
-        city: 'Mumbai',
-        otpCode: '592314',
-        status: 'USED',
-        issuedBy: 'ADMIN',
-        createdAt: '2026-01-13T09:30:00Z',
-        expiresAt: '2026-01-13T10:30:00Z',
-        verifiedAt: '2026-01-13T09:40:00Z',
-        usedAt: '2026-01-13T09:45:00Z',
-      },
-      {
-        id: 'otp-demo-03',
-        role: 'AGENT',
-        email: 'mandate@gulfscrapbrokers.com',
-        name: 'Tariq Mansoor',
-        companyName: 'Gulf Commodities Mandate & Brokerage',
-        phone: '+971 501234567',
-        country: 'UAE',
-        city: 'Dubai',
-        otpCode: '736182',
-        status: 'USED',
-        issuedBy: 'ADMIN',
-        createdAt: '2026-01-14T11:00:00Z',
-        expiresAt: '2026-01-14T12:00:00Z',
-        verifiedAt: '2026-01-14T11:15:00Z',
-        usedAt: '2026-01-14T11:20:00Z',
-      }
-    ];
+    // Load persisted users from local disk storage
+    const storedUsers = readJsonFile<User[]>(USERS_FILE, []);
+    if (storedUsers && storedUsers.length > 0) {
+      const userMap = new Map<string, User>();
+      // Base defaults first
+      defaultUsers.forEach((u) => userMap.set(u.id, u));
+      // Stored users take priority (retaining custom passwords & registered users)
+      storedUsers.forEach((u) => {
+        const existing = userMap.get(u.id);
+        userMap.set(u.id, existing ? { ...existing, ...u } : u);
+      });
+      this.users = Array.from(userMap.values());
+    } else {
+      this.users = defaultUsers;
+    }
+    this.persistUsers();
+
+    // 2. Load persisted db store or defaults
+    const storedDb = readJsonFile<any>(DB_STORE_FILE, null);
+    if (storedDb) {
+      this.listings = storedDb.listings || JSON.parse(JSON.stringify(INITIAL_LISTINGS));
+      this.requirements = storedDb.requirements || JSON.parse(JSON.stringify(INITIAL_REQUIREMENTS));
+      this.transactions = storedDb.transactions || JSON.parse(JSON.stringify(INITIAL_TRANSACTIONS));
+      this.assignments = storedDb.assignments || JSON.parse(JSON.stringify(INITIAL_AGENT_ASSIGNMENTS));
+      this.documents = storedDb.documents || JSON.parse(JSON.stringify(INITIAL_DOCUMENTS));
+      this.notifications = storedDb.notifications || JSON.parse(JSON.stringify(INITIAL_NOTIFICATIONS));
+      this.auditLogs = storedDb.auditLogs || JSON.parse(JSON.stringify(INITIAL_AUDIT_LOGS));
+      this.settings = storedDb.settings || JSON.parse(JSON.stringify(DEFAULT_SYSTEM_SETTINGS));
+    } else {
+      this.listings = JSON.parse(JSON.stringify(INITIAL_LISTINGS));
+      this.requirements = JSON.parse(JSON.stringify(INITIAL_REQUIREMENTS));
+      this.transactions = JSON.parse(JSON.stringify(INITIAL_TRANSACTIONS));
+      this.assignments = JSON.parse(JSON.stringify(INITIAL_AGENT_ASSIGNMENTS));
+      this.documents = JSON.parse(JSON.stringify(INITIAL_DOCUMENTS));
+      this.notifications = JSON.parse(JSON.stringify(INITIAL_NOTIFICATIONS));
+      this.auditLogs = JSON.parse(JSON.stringify(INITIAL_AUDIT_LOGS));
+      this.settings = JSON.parse(JSON.stringify(DEFAULT_SYSTEM_SETTINGS));
+      this.persistDbStore();
+    }
+
+    // 3. Registration OTPs persistence
+    const storedOtps = readJsonFile<RegistrationOtp[]>(OTPS_FILE, []);
+    if (storedOtps && storedOtps.length > 0) {
+      this.registrationOtps = storedOtps;
+    } else {
+      this.registrationOtps = [
+        {
+          id: 'otp-demo-01',
+          role: 'SUPPLIER',
+          email: 'supplier@qatarmetals.com',
+          name: 'Nasser Al-Kuwari',
+          companyName: 'Qatar Metal Recycling Yard W.L.L.',
+          phone: '+974 55123456',
+          country: 'Qatar',
+          city: 'Doha',
+          otpCode: '849201',
+          status: 'USED',
+          issuedBy: 'ADMIN',
+          createdAt: '2026-01-12T07:45:00Z',
+          expiresAt: '2026-01-12T08:45:00Z',
+          verifiedAt: '2026-01-12T07:55:00Z',
+          usedAt: '2026-01-12T08:00:00Z',
+        },
+        {
+          id: 'otp-demo-02',
+          role: 'BUYER',
+          email: 'procurement@jswsteel.in',
+          name: 'Rajesh Mehta',
+          companyName: 'JSW Steel & Alloys Ltd',
+          phone: '+91 9820123456',
+          country: 'India',
+          city: 'Mumbai',
+          otpCode: '592314',
+          status: 'USED',
+          issuedBy: 'ADMIN',
+          createdAt: '2026-01-13T09:30:00Z',
+          expiresAt: '2026-01-13T10:30:00Z',
+          verifiedAt: '2026-01-13T09:40:00Z',
+          usedAt: '2026-01-13T09:45:00Z',
+        },
+        {
+          id: 'otp-demo-03',
+          role: 'AGENT',
+          email: 'mandate@gulfscrapbrokers.com',
+          name: 'Tariq Mansoor',
+          companyName: 'Gulf Commodities Mandate & Brokerage',
+          phone: '+971 501234567',
+          country: 'UAE',
+          city: 'Dubai',
+          otpCode: '736182',
+          status: 'USED',
+          issuedBy: 'ADMIN',
+          createdAt: '2026-01-14T11:00:00Z',
+          expiresAt: '2026-01-14T12:00:00Z',
+          verifiedAt: '2026-01-14T11:15:00Z',
+          usedAt: '2026-01-14T11:20:00Z',
+        }
+      ];
+      this.persistOtps();
+    }
   }
 
   async syncWithFirestore() {
     try {
       console.log('[Firestore] Synchronizing database state with cloud store...');
-      // 1. Sync Users
+      // 1. Sync Users with lifetime password preservation
       const remoteUsers = await fetchCollection<User>('users');
       if (remoteUsers && remoteUsers.length > 0) {
         const userMap = new Map<string, User>();
@@ -153,10 +255,12 @@ class TradingDatabase {
         remoteUsers.forEach((u) => {
           if (!u.email?.includes('@example.com')) {
             const existing = userMap.get(u.id);
-            userMap.set(u.id, existing ? { ...existing, ...u } : u);
+            const preservedPassword = (existing && existing.password) || u.password || (u.role === 'ADMIN' ? 'admin123' : 'password123');
+            userMap.set(u.id, existing ? { ...existing, ...u, password: preservedPassword } : { ...u, password: preservedPassword });
           }
         });
         this.users = Array.from(userMap.values());
+        this.persistUsers();
         console.log(`[Firestore] Database active with ${this.users.length} institutional & registered accounts.`);
       } else {
         console.log('[Firestore] Initializing official institutional accounts in cloud store...');
@@ -167,23 +271,38 @@ class TradingDatabase {
 
       // 2. Sync Listings
       const remoteListings = await fetchCollection<ScrapListing>('listings');
-      this.listings = remoteListings || [];
+      if (remoteListings && remoteListings.length > 0) {
+        this.listings = remoteListings;
+        this.persistDbStore();
+      }
 
       // 3. Sync Requirements
       const remoteReqs = await fetchCollection<BuyerRequirement>('requirements');
-      this.requirements = remoteReqs || [];
+      if (remoteReqs && remoteReqs.length > 0) {
+        this.requirements = remoteReqs;
+        this.persistDbStore();
+      }
 
       // 4. Sync Transactions
       const remoteTxns = await fetchCollection<Transaction>('transactions');
-      this.transactions = remoteTxns || [];
+      if (remoteTxns && remoteTxns.length > 0) {
+        this.transactions = remoteTxns;
+        this.persistDbStore();
+      }
 
       // 5. Sync Agent Assignments
       const remoteAsgs = await fetchCollection<AgentAssignment>('agentAssignments');
-      this.assignments = remoteAsgs || [];
+      if (remoteAsgs && remoteAsgs.length > 0) {
+        this.assignments = remoteAsgs;
+        this.persistDbStore();
+      }
 
       // 6. Sync Trade Documents
       const remoteDocs = await fetchCollection<TradeDocument>('tradeDocuments');
-      this.documents = remoteDocs || [];
+      if (remoteDocs && remoteDocs.length > 0) {
+        this.documents = remoteDocs;
+        this.persistDbStore();
+      }
 
       // 7. Sync Registration OTPs
       const remoteOtps = await fetchCollection<RegistrationOtp>('registrationOtps');
@@ -192,6 +311,7 @@ class TradingDatabase {
         this.registrationOtps.forEach((o) => otpMap.set(o.id, o));
         remoteOtps.forEach((o) => otpMap.set(o.id, o));
         this.registrationOtps = Array.from(otpMap.values());
+        this.persistOtps();
       }
 
       this.initialized = true;
@@ -213,6 +333,7 @@ class TradingDatabase {
     } else {
       this.registrationOtps.unshift(otp);
     }
+    this.persistOtps();
     await saveDocument('registrationOtps', otp);
     return otp;
   }
@@ -250,21 +371,30 @@ class TradingDatabase {
     return found || null;
   }
 
-  // Find user by identifier (email, username, name, companyName, or ID)
+  // Find user by identifier (email, username, name, companyName, mobile phone, or ID)
   async findUser(identifier: string): Promise<User | null> {
     const cleanId = (identifier || '').trim().toLowerCase();
     if (!cleanId) return null;
+    const digitsOnly = cleanId.replace(/\D/g, '');
 
-    // Check memory first
+    // Check memory first (checks ID, email, username, full name, company name, or mobile phone)
     const found = this.users.find(
       (u) =>
         u.id.toLowerCase() === cleanId ||
         (u.email && u.email.toLowerCase() === cleanId) ||
         (u.username && u.username.toLowerCase() === cleanId) ||
         (u.name && u.name.toLowerCase() === cleanId) ||
-        (u.companyName && u.companyName.toLowerCase() === cleanId)
+        (u.companyName && u.companyName.toLowerCase() === cleanId) ||
+        (digitsOnly.length >= 7 && u.phone && u.phone.replace(/\D/g, '').includes(digitsOnly))
     );
     if (found) return found;
+
+    // Check role keywords directly
+    if (['admin', 'supplier', 'buyer', 'agent'].includes(cleanId)) {
+      const targetRole = cleanId.toUpperCase() as UserRole;
+      const roleMatch = this.users.find((u) => u.role === targetRole);
+      if (roleMatch) return roleMatch;
+    }
 
     // Fallback query directly to Firestore
     const remoteUser = await findUserInFirestore(identifier);
@@ -275,6 +405,7 @@ class TradingDatabase {
       } else {
         this.users.push(remoteUser);
       }
+      this.persistUsers();
       return remoteUser;
     }
 
@@ -289,12 +420,14 @@ class TradingDatabase {
     } else {
       this.users.push(user);
     }
+    this.persistUsers();
     await saveDocument('users', user);
     return user;
   }
 
   async deleteUser(userId: string): Promise<void> {
     this.users = this.users.filter((u) => u.id !== userId);
+    this.persistUsers();
     await deleteDocument('users', userId);
   }
 
@@ -306,12 +439,14 @@ class TradingDatabase {
     } else {
       this.listings.unshift(listing);
     }
+    this.persistDbStore();
     await saveDocument('listings', listing);
     return listing;
   }
 
   async deleteListing(listingId: string): Promise<void> {
     this.listings = this.listings.filter((l) => l.id !== listingId);
+    this.persistDbStore();
     await deleteDocument('listings', listingId);
   }
 
@@ -323,12 +458,14 @@ class TradingDatabase {
     } else {
       this.requirements.unshift(req);
     }
+    this.persistDbStore();
     await saveDocument('requirements', req);
     return req;
   }
 
   async deleteRequirement(reqId: string): Promise<void> {
     this.requirements = this.requirements.filter((r) => r.id !== reqId);
+    this.persistDbStore();
     await deleteDocument('requirements', reqId);
   }
 
@@ -340,6 +477,7 @@ class TradingDatabase {
     } else {
       this.transactions.unshift(txn);
     }
+    this.persistDbStore();
     await saveDocument('transactions', txn);
     return txn;
   }
@@ -352,6 +490,7 @@ class TradingDatabase {
     } else {
       this.assignments.unshift(asg);
     }
+    this.persistDbStore();
     await saveDocument('agentAssignments', asg);
     return asg;
   }
